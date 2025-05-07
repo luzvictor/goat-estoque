@@ -120,9 +120,77 @@ exports.Prisma.TransactionIsolationLevel = makeStrictEnum({
   Serializable: 'Serializable'
 });
 
+exports.Prisma.ProdutoScalarFieldEnum = {
+  id_produto: 'id_produto',
+  nome: 'nome',
+  categoria: 'categoria',
+  marca: 'marca',
+  cor: 'cor',
+  quantidade: 'quantidade',
+  valorCusto: 'valorCusto',
+  valorVenda: 'valorVenda',
+  estoqueMin: 'estoqueMin'
+};
+
+exports.Prisma.EntradaEstoqueScalarFieldEnum = {
+  id_entrada: 'id_entrada',
+  data: 'data',
+  quantidade: 'quantidade',
+  produtoId: 'produtoId'
+};
+
+exports.Prisma.PedidoScalarFieldEnum = {
+  id_pedido: 'id_pedido',
+  data: 'data',
+  status: 'status',
+  usuarioId: 'usuarioId'
+};
+
+exports.Prisma.PedidoProdutoScalarFieldEnum = {
+  id: 'id',
+  quantidade: 'quantidade',
+  produtoId: 'produtoId',
+  pedidoId: 'pedidoId'
+};
+
+exports.Prisma.UsuarioScalarFieldEnum = {
+  id_usuario: 'id_usuario',
+  nome: 'nome',
+  email: 'email',
+  senha: 'senha'
+};
+
+exports.Prisma.NotificacaoScalarFieldEnum = {
+  id_notificacao: 'id_notificacao',
+  mensagem: 'mensagem',
+  dataEnvio: 'dataEnvio'
+};
+
+exports.Prisma.NotificacaoUsuarioScalarFieldEnum = {
+  id: 'id',
+  usuarioId: 'usuarioId',
+  notificacaoId: 'notificacaoId'
+};
+
+exports.Prisma.SortOrder = {
+  asc: 'asc',
+  desc: 'desc'
+};
+
+exports.Prisma.QueryMode = {
+  default: 'default',
+  insensitive: 'insensitive'
+};
+
 
 exports.Prisma.ModelName = {
-
+  Produto: 'Produto',
+  EntradaEstoque: 'EntradaEstoque',
+  Pedido: 'Pedido',
+  PedidoProduto: 'PedidoProduto',
+  Usuario: 'Usuario',
+  Notificacao: 'Notificacao',
+  NotificacaoUsuario: 'NotificacaoUsuario'
 };
 
 /**

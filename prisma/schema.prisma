@@ -13,3 +13,75 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+model Produto {
+  id_produto   String           @id @default(cuid())
+  nome         String
+  categoria    String
+  marca        String
+  cor          String
+  quantidade   Int
+  valorCusto   Float
+  valorVenda   Float
+  estoqueMin   Int
+
+  entradas     EntradaEstoque[]
+  pedidos      PedidoProduto[]
+}
+
+model EntradaEstoque {
+  id_entrada   String   @id @default(cuid())
+  data         DateTime @default(now())
+  quantidade   Int
+
+  produtoId    String
+  produto      Produto  @relation(fields: [produtoId], references: [id_produto])
+}
+
+model Pedido {
+  id_pedido    String          @id @default(cuid())
+  data         DateTime        @default(now())
+  status       String
+
+  usuarioId    String
+  usuario      Usuario         @relation(fields: [usuarioId], references: [id_usuario])
+  produtos     PedidoProduto[]
+}
+
+model PedidoProduto {
+  id           String   @id @default(cuid())
+  quantidade   Int
+
+  produtoId    String
+  pedidoId     String
+
+  produto      Produto  @relation(fields: [produtoId], references: [id_produto])
+  pedido       Pedido   @relation(fields: [pedidoId], references: [id_pedido])
+}
+
+model Usuario {
+  id_usuario   String         @id @default(cuid())
+  nome         String
+  email        String         @unique
+  senha        String
+
+  pedidos      Pedido[]
+  notificacoes NotificacaoUsuario[]
+}
+
+model Notificacao {
+  id_notificacao String       @id @default(cuid())
+  mensagem       String
+  dataEnvio      DateTime     @default(now())
+
+  usuarios       NotificacaoUsuario[]
+}
+
+model NotificacaoUsuario {
+  id              String       @id @default(cuid())
+  usuarioId       String
+  notificacaoId   String
+
+  usuario         Usuario      @relation(fields: [usuarioId], references: [id_usuario])
+  notificacao     Notificacao  @relation(fields: [notificacaoId], references: [id_notificacao])
+}
