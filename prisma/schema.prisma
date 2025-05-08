@@ -32,6 +32,7 @@ model EntradaEstoque {
   id_entrada   String   @id @default(cuid())
   data         DateTime @default(now())
   quantidade   Int
+  numeroNota   String?
 
   produtoId    String
   produto      Produto  @relation(fields: [produtoId], references: [id_produto])
