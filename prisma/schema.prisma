@@ -39,24 +39,23 @@ model EntradaEstoque {
 }
 
 model Pedido {
-  id_pedido    String          @id @default(cuid())
-  data         DateTime        @default(now())
-  status       String
-
-  usuarioId    String
-  usuario      Usuario         @relation(fields: [usuarioId], references: [id_usuario])
-  produtos     PedidoProduto[]
+  id_pedido   String           @id @default(cuid())
+  data        DateTime         @default(now())
+  status      String           @default("Pendente")
+  usuarioId   String?
+  usuario     Usuario?         @relation(fields: [usuarioId], references: [id_usuario])
+  produtos    PedidoProduto[]
 }
 
 model PedidoProduto {
-  id           String   @id @default(cuid())
-  quantidade   Int
+  id          String   @id @default(cuid())
+  quantidade  Int
 
-  produtoId    String
-  pedidoId     String
+  produtoId   String
+  pedidoId    String
 
-  produto      Produto  @relation(fields: [produtoId], references: [id_produto])
-  pedido       Pedido   @relation(fields: [pedidoId], references: [id_pedido])
+  produto     Produto  @relation(fields: [produtoId], references: [id_produto])
+  pedido      Pedido   @relation(fields: [pedidoId], references: [id_pedido])
 }
 
 model Usuario {
