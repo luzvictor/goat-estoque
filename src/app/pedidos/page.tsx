@@ -54,6 +54,24 @@ export default function PedidosPage() {
     await fetchPedidos();
   }
 
+  async function removerPedido(id: string) {
+    if (!confirm("Tem certeza que deseja remover este pedido?")) return;
+
+    await fetch(`/api/pedidos/${id}`, {
+      method: "DELETE",
+    });
+    await fetchPedidos();
+  }
+
+  async function atualizarStatus(id: string, status: string) {
+    await fetch(`/api/pedidos/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    fetchPedidos();
+  }
+
   useEffect(() => {
     fetchProdutos();
     fetchPedidos();
@@ -125,7 +143,20 @@ export default function PedidosPage() {
             <div className="font-bold">
               Pedido #{pedido.id_pedido.slice(0, 6)} • {new Date(pedido.data).toLocaleString()}
             </div>
-            <div>Status: {pedido.status}</div>
+
+            <div className="flex items-center gap-2 my-1">
+              <span>Status:</span>
+              <select
+                value={pedido.status}
+                onChange={(e) => atualizarStatus(pedido.id_pedido, e.target.value)}
+                className="border rounded p-1"
+              >
+                <option value="Pendente">Pendente</option>
+                <option value="Concluído">Concluído</option>
+                <option value="Cancelado">Cancelado</option>
+              </select>
+            </div>
+
             <ul className="ml-4 list-disc">
               {pedido.produtos.map((pp) => (
                 <li key={pp.id}>
@@ -133,6 +164,13 @@ export default function PedidosPage() {
                 </li>
               ))}
             </ul>
+
+            <button
+              onClick={() => removerPedido(pedido.id_pedido)}
+              className="mt-2 bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
+            >
+              Remover Pedido
+            </button>
           </li>
         ))}
       </ul>
