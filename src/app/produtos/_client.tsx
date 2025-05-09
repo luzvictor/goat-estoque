@@ -1,5 +1,6 @@
 'use client'
 
+import Header from "@/components/Header";
 import { useEffect, useState } from "react";
 
 type Produto = {
@@ -48,6 +49,8 @@ export default function ProdutosPageClient() {
   }, []);
 
   return (
+    <>
+    <Header />
     <div className="p-6">
       <h1 className="text-2xl font-bold mb-4">Produtos</h1>
 
@@ -88,5 +91,6 @@ export default function ProdutosPageClient() {
         ))}
       </ul>
     </div>
+    </>
   );
 }
