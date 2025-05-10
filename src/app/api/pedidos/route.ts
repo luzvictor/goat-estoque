@@ -50,6 +50,13 @@ export async function POST(req: Request) {
         },
       });
     }
+    // Criar notificação
+    await prisma.notificacao.create({
+      data: {
+        mensagem: `Novo pedido registrado em ${new Date().toLocaleString("pt-BR")}`,
+      },
+    });
+
 
     return NextResponse.json(novoPedido);
   } catch (error) {
