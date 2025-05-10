@@ -2,6 +2,9 @@
 
 import Header from "@/components/Header";
 import { useEffect, useState } from "react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 
 type Produto = {
   id_produto: string;
@@ -35,9 +38,13 @@ export default function ProdutosPageClient() {
       body: JSON.stringify(form),
     });
     await fetchProdutos();
+    setForm({ nome: "", categoria: "", marca: "", cor: "", quantidade: 0, valorCusto: 0, valorVenda: 0, estoqueMin: 0 });
   }
 
   async function deletarProduto(id: string) {
+    const confirmacao = confirm("Tem certeza que deseja remover este produto?");
+    if (!confirmacao) return;
+
     await fetch(`/api/produtos/${id}`, {
       method: "DELETE",
     });
@@ -50,47 +57,63 @@ export default function ProdutosPageClient() {
 
   return (
     <>
-    <Header />
-    <div className="p-6">
-      <h1 className="text-2xl font-bold mb-4">Produtos</h1>
+      <Header />
+      <div className="p-6 max-w-1xl mx-auto text-white bg-[#111] min-h-screen">
+        <h1 className="text-3xl font-bold mb-6 text-[#CFFF04]">Gerenciar Produtos</h1>
 
-      <div className="grid grid-cols-3 gap-2 mb-4">
-        {Object.entries(form).map(([key, value]) => (
-          <input
-            key={key}
-            type={typeof value === "number" ? "number" : "text"}
-            placeholder={key}
-            className="border p-2 rounded"
-            value={value}
-            onChange={(e) =>
-              setForm({ ...form, [key]: typeof value === "number" ? +e.target.value : e.target.value })
-            }
-          />
-        ))}
-        <button
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+          {Object.entries(form).map(([key, value]) => (
+            <div key={key} className="flex flex-col">
+              <Label htmlFor={key} className="capitalize text-gray-300 mb-1">{key}</Label>
+              <Input
+                id={key}
+                type={typeof value === "number" ? "number" : "text"}
+                value={value}
+                placeholder={key}
+                className="bg-[#1c1c1c] border border-gray-600 text-white placeholder-gray-400"
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    [key]: typeof value === "number" ? +e.target.value : e.target.value,
+                  })
+                }
+              />
+            </div>
+          ))}
+        </div>
+
+        <Button
           onClick={criarProduto}
-          className="col-span-3 bg-blue-600 text-white p-2 rounded hover:bg-blue-700"
+          className="w-full bg-[#CFFF04] text-black hover:bg-lime-300 font-semibold transition"
         >
           Adicionar Produto
-        </button>
-      </div>
+        </Button>
 
-      <ul className="space-y-2">
-        {produtos.map((produto) => (
-          <li key={produto.id_produto} className="border p-2 rounded shadow flex justify-between items-center">
-            <div>
-              <strong>{produto.nome}</strong> — {produto.categoria} | Quantidade: {produto.quantidade}
-            </div>
-            <button
-              onClick={() => deletarProduto(produto.id_produto)}
-              className="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600"
+        <h2 className="text-xl font-semibold mt-10 mb-4 text-gray-200">Lista de Produtos</h2>
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
+          {produtos.map((produto) => (
+            <div
+              key={produto.id_produto}
+              className="bg-[#1c1c1c] rounded-xl shadow-lg p-4 border border-gray-700 flex flex-col justify-between"
             >
-              Remover
-            </button>
-          </li>
-        ))}
-      </ul>
-    </div>
+              <div>
+                <h3 className="text-lg font-bold text-[#CFFF04]">{produto.nome}</h3>
+                <p className="text-sm text-gray-400 mb-1">Categoria: {produto.categoria}</p>
+                <p className="text-sm text-gray-400 mb-1">Marca: {produto.marca}</p>
+                <p className="text-sm text-gray-400 mb-1">Cor: {produto.cor}</p>
+                <p className="text-sm text-gray-300">Estoque: {produto.quantidade}</p>
+              </div>
+              <Button
+                variant="destructive"
+                onClick={() => deletarProduto(produto.id_produto)}
+                className="mt-4"
+              >
+                Remover
+              </Button>
+            </div>
+          ))}
+        </div>
+      </div>
     </>
   );
 }
