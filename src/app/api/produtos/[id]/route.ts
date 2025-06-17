@@ -1,52 +1,120 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 
-type Params = {
-  params: {
-    id: string;
-  };
-};
-
-// DELETE: Remover um produto pelo ID
-export async function DELETE(req: Request, context: { params: { id: string } }) {
-    const { id } = await context.params;
-  
-
+// GET - Obter um único Produto Base pelo ID, com suas variantes
+export async function GET(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
   try {
-    await prisma.produto.delete({
+    const { id } = params;
+    const produtoBase = await prisma.produtoBase.findUnique({
       where: {
-        id_produto: id,
+        id_produto_base: id,
+      },
+      include: {
+        variantes: {
+          orderBy: {
+            cor: 'asc'
+          }
+        },
       },
     });
 
-    return NextResponse.json({ message: "Produto removido com sucesso" });
+    if (!produtoBase) {
+      return NextResponse.json(
+        { error: "Produto base não encontrado." },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json(produtoBase);
   } catch (error) {
-    return NextResponse.json({ error: "Erro ao remover produto" }, { status: 500 });
+    console.error("Erro ao buscar produto base:", error);
+    return NextResponse.json(
+      { error: "Erro ao buscar produto base." },
+      { status: 500 }
+    );
   }
 }
 
-export async function PUT(req: Request, context: { params: { id: string } }) {
-    const { id } = await context.params;
-    const data = await req.json();
-  
-    try {
-      const produtoAtualizado = await prisma.produto.update({
-        where: { id_produto: id },
-        data: {
-          nome: data.nome,
-          categoria: data.categoria,
-          marca: data.marca,
-          cor: data.cor,
-          quantidade: data.quantidade,
-          valorCusto: data.valorCusto,
-          valorVenda: data.valorVenda,
-          estoqueMin: data.estoqueMin,
-        },
-      });
-  
-      return NextResponse.json(produtoAtualizado);
-    } catch (error) {
-      console.error(error);
-      return NextResponse.json({ error: "Erro ao atualizar produto" }, { status: 500 });
+// DELETE - Deletar um Produto Base pelo ID
+export async function DELETE(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const { id } = params;
+
+    await prisma.produtoBase.delete({
+      where: {
+        id_produto_base: id,
+      },
+    });
+
+    return NextResponse.json({ message: "Produto base e suas variantes foram removidos com sucesso." });
+  } catch (error: any) {
+    console.error("Erro ao remover produto base:", error);
+
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+      return NextResponse.json(
+        { error: "Produto base não encontrado para remoção." },
+        { status: 404 }
+      );
     }
+
+    return NextResponse.json(
+      { error: "Erro ao remover produto base." },
+      { status: 500 }
+    );
   }
+}
+
+// --- FUNÇÃO PUT ATUALIZADA E MAIS ROBUSTA ---
+export async function PUT(
+  request: Request,
+  { params }: { params: { id:string } }
+) {
+  try {
+    const { id } = params;
+    const body = await request.json();
+    const { nome, categoria, marca } = body;
+
+    // 1. Cria um objeto de dados apenas com os campos que foram realmente enviados
+    const dataToUpdate: Prisma.ProdutoBaseUpdateInput = {};
+    if (nome !== undefined) dataToUpdate.nome = nome;
+    if (categoria !== undefined) dataToUpdate.categoria = categoria;
+    if (marca !== undefined) dataToUpdate.marca = marca;
+
+    // 2. Verifica se há algo para atualizar
+    if (Object.keys(dataToUpdate).length === 0) {
+      return NextResponse.json(
+        { error: "Nenhum campo válido para atualizar foi fornecido (nome, categoria, marca)." },
+        { status: 400 }
+      );
+    }
+
+    // 3. Executa o update com os dados filtrados
+    const produtoAtualizado = await prisma.produtoBase.update({
+      where: { id_produto_base: id },
+      data: dataToUpdate,
+    });
+
+    return NextResponse.json(produtoAtualizado);
+  } catch (error: any) {
+    console.error("Erro ao atualizar produto base:", error);
+
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+      return NextResponse.json(
+        { error: "Produto base não encontrado para atualização." },
+        { status: 404 }
+      );
+    }
+    
+    return NextResponse.json(
+      { error: "Erro ao atualizar produto base." },
+      { status: 500 }
+    );
+  }
+}
