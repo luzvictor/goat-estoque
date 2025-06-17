@@ -1,3 +1,5 @@
+// Em: src/components/AppShell.tsx
+
 'use client'
 
 import { usePathname } from 'next/navigation';
@@ -11,7 +13,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // Se a rota for a de login, renderiza apenas o conteúdo em um layout simples
   if (pathname === '/login') {
     return (
-      <div className="flex min-h-screen items-center justify-center p-4">
+      <div className="flex min-h-screen items-center justify-center p-4 bg-muted">
         {children}
       </div>
     );
@@ -21,7 +23,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
       {/* Sidebar para Desktop */}
-      <div className="hidden border-r bg-card md:block">
+      {/* CORREÇÃO AQUI: Trocamos bg-card por bg-muted para deixar a sidebar cinza */}
+      <div className="hidden border-r bg-muted md:block">
         <Sidebar />
       </div>
 

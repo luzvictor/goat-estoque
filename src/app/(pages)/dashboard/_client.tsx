@@ -1,221 +1,234 @@
 'use client'
 
-import { useState, useEffect } from 'react';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { useState, useEffect, useCallback, ElementType } from 'react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { DollarSign, AlertCircle, ShoppingCart, Loader2 } from 'lucide-react';
 import { Badge } from "@/components/ui/badge";
+import { ArrowUp, ArrowDown, DollarSign, ShoppingCart, AlertTriangle, Clock, PackageCheck, Loader2 } from "lucide-react";
+import { DateRangePicker } from '@/components/ui/date-range-picker';
+import { DateRange } from 'react-day-picker';
+import { endOfMonth, startOfMonth } from 'date-fns';
 
-// Tipagens para os dados do dashboard
-interface DashboardData {
-  faturamentoTotal: number;
-  totalVendas: number;
-  produtosEstoqueBaixo: any[];
-  vendasRecentes: any[];
-  faturamentoMensal: { mes: string, total: number }[];
+// --- Tipagens para os dados do Dashboard ---
+type KpiData = {
+  faturamento: { valor: number; variacao: number };
+  totalPedidos: { valor: number };
+  ticketMedio: { valor: number };
+};
+type AlertData = {
+  estoqueBaixo: { id_variante: string; cor: string; tamanho: string | null; quantidade: number; produtoBase: { nome: string; marca: string } }[];
+  pedidosPendentes: { id: string; data: string; Cliente: { nome: string } | null }[];
+};
+// NOVO: Tipagens para os dados dos gráficos
+type SalesData = { name: string; Vendas: number };
+type CategoryData = { name: string; value: number };
+
+
+const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff8042', '#00C49F', '#FFBB28'];
+const formatCurrency = (value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+
+interface KpiCardProps {
+  title: string;
+  value: number;
+  change?: number;
+  icon: ElementType;
+  format?: (v: number) => string;
 }
 
-const formatCurrency = (value: number) => {
-  if (typeof value !== 'number') return "R$ 0,00";
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-};
+function KpiCard({ title, value, change, icon: Icon, format = (v) => v.toString() }: KpiCardProps) {
+  const isPositive = change !== undefined && change >= 0;
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        <Icon className="h-4 w-4 text-muted-foreground" />
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-bold">{format(value)}</div>
+        {change !== undefined && (
+          <p className="text-xs text-muted-foreground flex items-center">
+            <span className={`flex items-center mr-1 ${isPositive ? 'text-emerald-500' : 'text-red-500'}`}>
+              {isPositive ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
+              {change.toFixed(1)}%
+            </span>
+            em relação ao mês passado
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
-// --- NOVO COMPONENTE: Tooltip Customizado para o Gráfico ---
-const CustomTooltip = ({ active, payload, label }: any) => {
-  if (active && payload && payload.length) {
-    return (
-      <div className="rounded-lg border bg-background p-2 shadow-sm">
-        <div className="grid grid-cols-2 gap-2">
-          <div className="flex flex-col">
-            <span className="text-[0.70rem] uppercase text-muted-foreground">
-              Mês
-            </span>
-            <span className="font-bold text-muted-foreground">
-              {label}
-            </span>
-          </div>
-          <div className="flex flex-col">
-            <span className="text-[0.70rem] uppercase text-muted-foreground">
-              Faturamento
-            </span>
-            <span className="font-bold text-accent">
-              {formatCurrency(payload[0].value)}
-            </span>
-          </div>
-        </div>
-      </div>
-    );
-  }
-  return null;
-};
-
-
-export function DashboardPageClient() {
-  const [data, setData] = useState<DashboardData | null>(null);
+// --- Componente Principal do Dashboard ---
+export default function DashboardClient() {
+  const [kpis, setKpis] = useState<KpiData | null>(null);
+  const [alerts, setAlerts] = useState<AlertData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    async function fetchData() {
-      setIsLoading(true);
-      try {
-        const response = await fetch('/api/dashboard');
-        if (!response.ok) throw new Error('Falha ao buscar dados');
-        const result = await response.json();
-        setData(result);
-      } catch (error) {
-        console.error(error);
-      } finally {
-        setIsLoading(false);
-      }
+  // NOVO: Estados para os dados dos gráficos
+  const [salesData, setSalesData] = useState<SalesData[]>([]);
+  const [categoryData, setCategoryData] = useState<CategoryData[]>([]);
+
+  const [date, setDate] = useState<DateRange | undefined>({
+    from: startOfMonth(new Date()),
+    to: endOfMonth(new Date()),
+  });
+
+  const fetchDashboardData = useCallback(async (currentDate: DateRange | undefined) => {
+    if (!currentDate?.from || !currentDate?.to) {
+      return; // Não faz nada se o período não estiver completo
     }
-    fetchData();
+    
+    setIsLoading(true);
+    try {
+      const fromISO = currentDate.from.toISOString();
+      const toISO = currentDate.to.toISOString();
+
+      const [kpisRes, alertsRes, salesRes, categoryRes] = await Promise.all([
+        fetch(`/api/dashboard/kpis?from=${fromISO}&to=${toISO}`),
+        fetch(`/api/dashboard/alerts?from=${fromISO}&to=${toISO}`), // Adapte esta API se necessário
+        fetch(`/api/dashboard/sales-over-time?from=${fromISO}&to=${toISO}`),
+        fetch(`/api/dashboard/sales-by-category?from=${fromISO}&to=${toISO}`),
+      ]);
+
+      if (!kpisRes.ok || !alertsRes.ok || !salesRes.ok || !categoryRes.ok) {
+        throw new Error("Falha ao buscar dados do dashboard");
+      }
+
+      const kpisData = await kpisRes.json();
+      const alertsData = await alertsRes.json();
+      const salesData = await salesRes.json();
+      const categoryData = await categoryRes.json();
+      
+      setKpis(kpisData);
+      setAlerts(alertsData);
+      setSalesData(salesData);
+      setCategoryData(categoryData);
+
+    } catch (error) {
+      console.error("Erro no dashboard:", error);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
+  useEffect(() => {
+    fetchDashboardData(date);
+  }, [date, fetchDashboardData]);
+
+  const getStatusVariant = (status: string): "default" | "secondary" | "destructive" | "outline" => { /* ... */ return 'outline' };
+
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-full pt-20">
-        <Loader2 className="h-8 w-8 animate-spin text-accent" />
-      </div>
-    );
+    return <div className="flex items-center justify-center h-screen"><Loader2 className="h-8 w-8 animate-spin text-accent"/></div>;
   }
-
-  if (!data) {
-    return <p className="text-center">Não foi possível carregar os dados do dashboard.</p>;
-  }
-
-  // Formata os dados para o gráfico
-  const chartData = data.faturamentoMensal.map(item => ({
-    name: new Date(item.mes + '-02').toLocaleString('pt-BR', { month: 'short' }).toUpperCase(),
-    Total: Number(item.total),
-  }));
 
   return (
-    <div className="flex flex-col gap-6">
-      <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-
-      {/* Cards de Resumo */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Faturamento Total</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(data.faturamentoTotal)}</div>
-            <p className="text-xs text-muted-foreground">no período selecionado</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total de Vendas</CardTitle>
-            <ShoppingCart className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">+{data.totalVendas}</div>
-            <p className="text-xs text-muted-foreground">no período selecionado</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Alertas de Estoque Baixo</CardTitle>
-            <AlertCircle className="h-4 w-4 text-destructive" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{data.produtosEstoqueBaixo.length}</div>
-            <p className="text-xs text-muted-foreground">produtos precisando de atenção</p>
-          </CardContent>
-        </Card>
+    <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
+      <div className="flex items-center justify-between space-y-2">
+        <h2 className="text-3xl font-bold tracking-tight text-accent">Dashboard</h2>
+        <div className="flex items-center space-x-2">
+          <DateRangePicker date={date} setDate={setDate} />
+          </div>
       </div>
 
-      {/* Gráfico e Listas */}
-      <div className="grid gap-4 grid-cols-1 lg:grid-cols-7">
-        <Card className="lg:col-span-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <KpiCard title="Faturamento (este mês)" value={kpis?.faturamento.valor || 0} change={kpis?.faturamento.variacao} icon={DollarSign} format={formatCurrency} />
+        <KpiCard title="Total de Pedidos (mês)" value={kpis?.totalPedidos.valor || 0} icon={ShoppingCart} />
+        <KpiCard title="Ticket Médio (mês)" value={kpis?.ticketMedio.valor || 0} icon={PackageCheck} format={formatCurrency} />
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+        <Card className="col-span-4">
           <CardHeader>
-            <CardTitle>Visão Geral de Faturamento</CardTitle>
-            <CardDescription>Faturamento mensal nos últimos 12 meses.</CardDescription>
+            <CardTitle>Visão Geral de Vendas</CardTitle>
+            <CardDescription>Faturamento diário para o mês atual.</CardDescription>
           </CardHeader>
           <CardContent className="pl-2">
-            <div style={{ width: '100%', height: 350 }}>
-              <ResponsiveContainer>
-                <BarChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${formatCurrency(value as number)}`} />
-                  {/* --- CORREÇÃO APLICADA AQUI --- */}
-                  <Tooltip cursor={{ fill: 'transparent' }} content={<CustomTooltip />} />
-                  <Bar dataKey="Total" fill="hsl(var(--accent))" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            <ResponsiveContainer width="100%" height={350}>
+              {/* ATUALIZADO: Usa os dados do estado 'salesData' */}
+              <BarChart data={salesData}>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
+                <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `R$${value/1000}k`} />
+                <Tooltip cursor={{fill: 'transparent'}} contentStyle={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))', borderRadius: '0.5rem' }} formatter={(value: number) => formatCurrency(value)}/>
+                <Bar dataKey="Vendas" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
           </CardContent>
         </Card>
-        <Card className="lg:col-span-3">
-          <CardHeader>
-            <CardTitle>Produtos com Estoque Baixo</CardTitle>
-            <CardDescription>Itens que atingiram ou estão abaixo do estoque mínimo.</CardDescription>
-          </CardHeader>
+        <Card className="col-span-4 lg:col-span-3">
+            <CardHeader><CardTitle>Vendas por Categoria</CardTitle><CardDescription>Distribuição de faturamento por categoria.</CardDescription></CardHeader>
+            <CardContent>
+                 <ResponsiveContainer width="100%" height={350}>
+                    {/* ATUALIZADO: Usa os dados do estado 'categoryData' */}
+                    <PieChart>
+                        <Pie data={categoryData} cx="50%" cy="50%" labelLine={false} outerRadius={120} fill="#8884d8" dataKey="value" nameKey="name" label={(props) => props.name}>
+                            {categoryData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                            ))}
+                        </Pie>
+                        <Tooltip contentStyle={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))', borderRadius: '0.5rem' }} formatter={(value: number) => formatCurrency(value)}/>
+                        <Legend/>
+                    </PieChart>
+                 </ResponsiveContainer>
+            </CardContent>
+        </Card>
+      </div>
+      
+      {/* Seção 3: Listas de Ação */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
+        <Card>
+          <CardHeader><CardTitle className="flex items-center gap-2"><AlertTriangle className="h-5 w-5 text-yellow-500"/>Alerta de Estoque Baixo</CardTitle></CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Produto</TableHead>
-                  <TableHead className="text-right">Qtd.</TableHead>
+                  <TableHead className="text-right">Estoque Atual</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data.produtosEstoqueBaixo.length > 0 ? (
-                  data.produtosEstoqueBaixo.map((item) => (
-                    <TableRow key={item.id_variante}>
-                      <TableCell>
-                        <div className="font-medium">{item.produtoBase.nome}</div>
-                        <div className="text-sm text-muted-foreground">{item.cor}, {item.tamanho || 'Único'}</div>
-                      </TableCell>
-                      <TableCell className="text-right font-mono">{item.quantidade}</TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={2} className="h-24 text-center text-muted-foreground">Nenhum produto com estoque baixo.</TableCell>
+                {alerts?.estoqueBaixo.map(item => (
+                  <TableRow key={item.id_variante}>
+                    <TableCell>
+                      <div className="font-medium">{item.produtoBase.marca} - {item.produtoBase.nome}</div>
+                      <div className="text-sm text-muted-foreground">{item.cor}, {item.tamanho || 'Único'}</div>
+                    </TableCell>
+                    <TableCell className="text-right font-bold text-destructive">{item.quantidade}</TableCell>
                   </TableRow>
-                )}
+                ))}
+                 {alerts && alerts.estoqueBaixo.length === 0 && <TableRow><TableCell colSpan={2} className="text-center h-24">Nenhum alerta de estoque.</TableCell></TableRow>}
               </TableBody>
             </Table>
           </CardContent>
         </Card>
+        <Card>
+          <CardHeader><CardTitle className="flex items-center gap-2"><Clock className="h-5 w-5 text-blue-500"/>Últimos Pedidos Pendentes</CardTitle></CardHeader>
+          <CardContent>
+              <Table>
+                <TableHeader>
+                    <TableRow>
+                        <TableHead>Cliente</TableHead>
+                        <TableHead>Data</TableHead>
+                        <TableHead className="text-right">Status</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {alerts?.pedidosPendentes.map(pedido => (
+                        <TableRow key={pedido.id}>
+                            <TableCell className="font-medium">{pedido.Cliente?.nome || 'Não Identificado'}</TableCell>
+                            <TableCell>{new Date(pedido.data).toLocaleDateString('pt-BR')}</TableCell>
+                            <TableCell className="text-right"><Badge variant={getStatusVariant('Pendente')}>Pendente</Badge></TableCell>
+                        </TableRow>
+                    ))}
+                    {alerts && alerts.pedidosPendentes.length === 0 && <TableRow><TableCell colSpan={3} className="text-center h-24">Nenhum pedido pendente.</TableCell></TableRow>}
+                </TableBody>
+              </Table>
+          </CardContent>
+        </Card>
       </div>
-
-      {/* --- NOVO CARD DE VENDAS RECENTES --- */}
-       <Card>
-        <CardHeader>
-          <CardTitle>Vendas Recentes</CardTitle>
-          <CardDescription>As últimas 5 vendas pagas registradas.</CardDescription>
-        </CardHeader>
-        <CardContent>
-            <div className="space-y-4">
-            {data.vendasRecentes.length > 0 ? (
-                data.vendasRecentes.map((venda) => (
-                <div key={venda.id} className="flex items-center justify-between">
-                    <div className="space-y-1">
-                    <p className="text-sm font-medium leading-none">
-                        Pedido #{venda.id.substring(0, 8)}...
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                        {venda.produtos.map((p: any) => `${p.quantidade}x ${p.variante.produtoBase.nome}`).join(', ')}
-                    </p>
-                    </div>
-                    <div className="ml-auto font-medium text-right">
-                        <div>+{formatCurrency(venda.produtos.reduce((acc: number, p: any) => acc + (p.quantidade * p.variante.valorVenda), 0))}</div>
-                        <div className="text-xs text-muted-foreground">{new Date(venda.data).toLocaleDateString()}</div>
-                    </div>
-                </div>
-                ))
-            ) : (
-                <p className="text-sm text-muted-foreground text-center">Nenhuma venda recente.</p>
-            )}
-            </div>
-        </CardContent>
-      </Card>
     </div>
-  )
+  );
 }

@@ -9,14 +9,10 @@ datasource db {
 }
 
 enum StatusPedido {
-  PENDENTE
-  AGUARDANDO_PAGAMENTO
-  PAGO
-  EM_SEPARACAO
-  ENVIADO
-  ENTREGUE
-  CANCELADO
-  REEMBOLSADO
+  Pendente
+  Enviado
+  Concluido // Nomes de enum não podem ter acentos
+  Cancelado
 }
 
 model ProdutoBase {
@@ -72,10 +68,15 @@ model EntradaEstoque {
 model Pedido {
   id        String          @id @default(uuid())
   data      DateTime        @default(now())
-  status    StatusPedido    @default(PENDENTE)
+  status    StatusPedido    @default(Pendente)
   produtos  PedidoProduto[] // Relacionamento com PedidoProduto
-  usuarioId String? // Renomeado
-  Usuario   Usuario?        @relation(fields: [usuarioId], references: [id_usuario]) // Referência ajustada
+
+  clienteId String? // Pode ser uma venda sem cliente cadastrado
+  Cliente   Cliente? @relation(fields: [clienteId], references: [id_cliente])
+
+  // Relacionamento com o Usuario (quem criou o pedido no sistema)
+  criadoPorUsuarioId String?
+  CriadoPor          Usuario? @relation(name: "PedidosCriados", fields: [criadoPorUsuarioId], references: [id_usuario])
 }
 
 model PedidoProduto {
@@ -89,13 +90,30 @@ model PedidoProduto {
   quantidade Int
 }
 
+// Em: prisma/schema.prisma
+
+model Cliente {
+  id_cliente String  @id @default(cuid())
+  nome       String
+  cpf        String? @unique // Opcional, mas único se preenchido
+  endereco   String?
+  telefone   String?
+
+  // Relacionamento: Um cliente pode ter vários pedidos
+  pedidos Pedido[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model Usuario {
   id_usuario String @id @default(cuid())
   nome       String
   email      String @unique
   senha      String
 
-  pedidos      Pedido[] // Relacionamento com Pedido
+  pedidosCriados Pedido[] @relation(name: "PedidosCriados")
+
   notificacoes NotificacaoUsuario[] // Relacionamento com NotificacaoUsuario
 }
 
