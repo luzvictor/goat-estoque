@@ -18,7 +18,7 @@ export default function RootLayout({
 }>) {
   return (
     // A classe "dark" aqui ativa o tema escuro para toda a aplicação.
-    <html lang="pt-BR" suppressHydrationWarning>
+    <html lang="pt-BR" className="root" suppressHydrationWarning>
       <body
         className={cn(
           "min-h-screen bg-background font-sans antialiased",

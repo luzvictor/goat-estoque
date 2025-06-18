@@ -113,6 +113,21 @@ export default function DashboardClient() {
       setIsLoading(false);
     }
   }, []);
+  const [chartColors, setChartColors] = useState({
+    primary: '#000000', // Cor de fallback
+    mutedForeground: '#000000',
+    border: '#000000',
+  });
+
+  useEffect(() => {
+    // Esta função só roda no cliente (depois que o CSS é carregado)
+    const style = getComputedStyle(document.body);
+    setChartColors({
+      primary: style.getPropertyValue('--primary').trim(),
+      mutedForeground: style.getPropertyValue('--muted-foreground').trim(),
+      border: style.getPropertyValue('--border').trim(),
+    });
+  }, []);
 
   useEffect(() => {
     fetchDashboardData(date);
@@ -152,8 +167,8 @@ export default function DashboardClient() {
                 <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
                 <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
                 <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `R$${value/1000}k`} />
-                <Tooltip cursor={{fill: 'transparent'}} contentStyle={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))', borderRadius: '0.5rem' }} formatter={(value: number) => formatCurrency(value)}/>
-                <Bar dataKey="Vendas" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                <Tooltip cursor={{fill: 'transparent'}} contentStyle={{ background: 'hsl(var(--accent))', border: '1px solid hsl(var(--border))', borderRadius: '0.5rem' }} formatter={(value: number) => formatCurrency(value)}/>
+                <Bar dataKey="Vendas" fill="var(--primary)" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
