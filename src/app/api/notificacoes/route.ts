@@ -1,24 +1,37 @@
+// Em: src/app/api/notificacoes/route.ts
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
-// GET: listar notificações (mais recentes primeiro)
-export async function GET() {
-  const notificacoes = await prisma.notificacao.findMany({
-    orderBy: { dataEnvio: "desc" },
-  });
+// Busca as notificações de um usuário específico
+export async function GET(request: Request) {
+  try {
+    // IMPORTANTE: Em um sistema real, você pegaria o ID do usuário da sessão de autenticação.
+    // Como ainda não temos auth, vamos simular pegando o primeiro usuário do banco.
+    const usuarioLogado = await prisma.usuario.findFirst();
+    
+    if (!usuarioLogado) {
+      return NextResponse.json({ error: "Nenhum usuário encontrado para buscar notificações." }, { status: 404 });
+    }
+    const mockUserId = usuarioLogado.id_usuario;
+    
+    const notificacoesUsuario = await prisma.notificacaoUsuario.findMany({
+      where: {
+        usuarioId: mockUserId,
+      },
+      include: {
+        notificacao: true, // Inclui os dados da notificação (mensagem, data)
+      },
+      orderBy: [
+        { lida: 'asc' }, // Não lidas primeiro
+        { notificacao: { dataEnvio: 'desc' } }, // Depois, as mais recentes
+      ],
+      take: 20, // Limita a 20 notificações para não sobrecarregar
+    });
 
-  return NextResponse.json(notificacoes);
-}
+    return NextResponse.json(notificacoesUsuario);
 
-// POST: criar uma nova notificação
-export async function POST(req: Request) {
-  const body = await req.json();
-
-  const nova = await prisma.notificacao.create({
-    data: {
-      mensagem: body.mensagem,
-    },
-  });
-
-  return NextResponse.json(nova);
+  } catch (error) {
+    console.error("Erro ao buscar notificações:", error);
+    return NextResponse.json({ error: "Erro ao buscar notificações." }, { status: 500 });
+  }
 }

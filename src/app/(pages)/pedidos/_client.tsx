@@ -45,7 +45,7 @@ export default function PedidosPageClient() {
   // Estados para modais de confirmação e detalhes
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [orderToDelete, setOrderToDelete] = useState<string | null>(null);
-  const [viewingOrder, setViewingOrder] = useState<Pedido | null>(null);
+  const [viewingOrderId, setViewingOrderId] = useState<string | null>(null);
 
   // --- Estados para gestão de clientes ---
   const [clienteSearch, setClienteSearch] = useState("");
@@ -133,18 +133,19 @@ export default function PedidosPageClient() {
     const pedido = originalPedidos.find(p => p.id === pedidoId);
     if (!pedido || pedido.status === newStatus) return;
 
-    const optimisticPedidos = pedidos.map(p => p.id === pedidoId ? { ...p, status: newStatus } : p);
-    setPedidos(optimisticPedidos);
+    // A única responsabilidade da página é atualizar sua própria lista (otimismo)
+    setPedidos(currentPedidos => 
+      currentPedidos.map(p => p.id === pedidoId ? { ...p, status: newStatus } : p)
+    );
 
-    if (viewingOrder?.id === pedidoId) {
-      setViewingOrder(prev => prev ? { ...prev, status: newStatus } : null);
-    }
+    // O modal de detalhes agora se atualiza sozinho ao reabrir/buscar dados.
+    // Não precisamos mais gerenciar o estado dele aqui.
 
     try {
       const response = await fetch(`/api/pedidos/${pedidoId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus })
+        body: JSON.stringify({ status: newStatus }),
       });
       if (!response.ok) {
         const errorData = await response.json();
@@ -152,10 +153,8 @@ export default function PedidosPageClient() {
       }
     } catch (error: any) {
       alert(`Não foi possível atualizar o status: ${error.message}. Revertendo.`);
+      // Se a API falhar, revertemos a lista na página principal
       setPedidos(originalPedidos);
-      if (viewingOrder?.id === pedidoId) {
-        setViewingOrder(originalPedidos.find(p => p.id === pedidoId) || null);
-      }
     }
   }
   
@@ -537,8 +536,8 @@ export default function PedidosPageClient() {
                             </PopoverTrigger>
                             <PopoverContent className="w-auto p-2" align="end">
                                <div className="flex flex-col gap-1">
-                                  <Button variant="ghost" size="sm" className="w-full justify-start" onClick={() => setViewingOrder(pedido)}>
-                                    Visualizar / Editar
+                                  <Button variant="ghost" size="sm" className="w-full justify-start" onClick={() => setViewingOrderId(pedido.id)}>
+                                    Visualizar
                                   </Button>
                                   <Button variant="ghost" size="sm" className="w-full justify-start text-red-500 hover:text-red-500 hover:bg-red-50"
                                     onClick={() => { setOrderToDelete(pedido.id); setIsAlertOpen(true); }}>
@@ -609,12 +608,13 @@ export default function PedidosPageClient() {
       </AlertDialog>
 
       <PedidoDetalhesModal
-        pedido={viewingOrder}
-        onClose={() => setViewingOrder(null)}
-        onStatusChange={(newStatus: string) => {
-          if (viewingOrder) {
-            handleUpdateStatus(viewingOrder.id, newStatus);
-          }
+        pedidoId={viewingOrderId}
+        onClose={() => setViewingOrderId(null)}
+        onStatusChange={(pedidoId, newStatus) => {
+          // A função onStatusChange no modal agora pode nos devolver o ID, simplificando a lógica
+          handleUpdateStatus(pedidoId, newStatus);
+          // Também atualizamos a lista principal para refletir a mudança
+          setPedidos(pedidos.map(p => p.id === pedidoId ? { ...p, status: newStatus } : p));
         }}
       />
     </div>

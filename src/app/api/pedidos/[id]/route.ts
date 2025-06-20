@@ -119,10 +119,11 @@ export async function DELETE(
     const { id: pedidoId } = params;
 
     const resultado = await prisma.$transaction(async (tx) => {
+      // 1. Busca o pedido e seus itens para saber o que reverter.
       const pedido = await tx.pedido.findUnique({
         where: { id: pedidoId },
         include: {
-          produtos: true,
+          produtos: true, // Inclui os itens do pedido (PedidoProduto)
         },
       });
 
@@ -130,7 +131,7 @@ export async function DELETE(
         throw new Error("Pedido não encontrado");
       }
       
-      // CORREÇÃO: Usa os valores que realmente existem no banco de dados (PascalCase)
+      // 2. Para cada item no pedido, devolve a quantidade ao estoque da variante.
       if (['Pago', 'Enviado', 'Entregue'].includes(pedido.status)) {
         for (const item of pedido.produtos) {
           await tx.varianteProduto.update({
@@ -144,6 +145,17 @@ export async function DELETE(
         }
       }
 
+      // ======================================================================
+      // PASSO 3 (NOVO E CRUCIAL): Deletar os itens da tabela de junção
+      // ======================================================================
+      await tx.pedidoProduto.deleteMany({
+        where: {
+          pedidoId: pedidoId,
+        },
+      });
+
+
+      // PASSO 4 (Antigo passo 3): Agora sim, deleta o pedido principal.
       await tx.pedido.delete({
         where: { id: pedidoId },
       });

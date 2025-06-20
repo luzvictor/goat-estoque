@@ -81,22 +81,20 @@ export async function POST(request: Request) {
     }
 
     const pedidoCriado = await prisma.$transaction(async (tx) => {
-      // Passo 1: Verificar estoque para todos os produtos ANTES de qualquer alteração.
+      // Passo 1: Verificar estoque
       for (const produto of produtos) {
         const varianteEmEstoque = await tx.varianteProduto.findUnique({
           where: { id_variante: produto.varianteId },
         });
-
         if (!varianteEmEstoque || varianteEmEstoque.quantidade < produto.quantidade) {
           throw new Error(`Estoque insuficiente para o produto SKU: ${varianteEmEstoque?.sku || produto.varianteId}`);
         }
       }
 
-      // Passo 2: Se todo o estoque estiver OK, criar o registro do Pedido e seus itens.
+      // Passo 2: Criar o Pedido
       const pedido = await tx.pedido.create({
         data: {
           clienteId: clienteId || null,
-          // criadoPorUsuarioId: 'id_do_vendedor_logado', // Futuramente, você pode adicionar isso
           produtos: {
             create: produtos.map((p: { varianteId: string, quantidade: number }) => ({
               varianteId: p.varianteId,
@@ -106,7 +104,7 @@ export async function POST(request: Request) {
         },
       });
 
-      // Passo 3: Se a criação do pedido deu certo, dar baixa no estoque para cada produto.
+      // Passo 3: Dar baixa no estoque
       for (const produto of produtos) {
         await tx.varianteProduto.update({
           where: { id_variante: produto.varianteId },
@@ -115,6 +113,33 @@ export async function POST(request: Request) {
               decrement: produto.quantidade,
             },
           },
+        });
+      }
+      
+      // =======================================================
+      // PASSO 4: CRIAR E ENVIAR A NOTIFICAÇÃO (NOVA LÓGICA)
+      // =======================================================
+      
+      // Busca todos os usuários do sistema para notificá-los.
+      const usuariosDoSistema = await tx.usuario.findMany({
+        select: { id_usuario: true },
+      });
+
+      // Só cria a notificação se existirem usuários para notificar.
+      if (usuariosDoSistema.length > 0) {
+        // Cria a notificação principal.
+        const novaNotificacao = await tx.notificacao.create({
+          data: {
+            mensagem: `Novo pedido recebido! ID: #${pedido.id.substring(0, 8)}`,
+          },
+        });
+
+        // Cria as entradas na tabela de junção 'NotificacaoUsuario' para cada usuário.
+        await tx.notificacaoUsuario.createMany({
+          data: usuariosDoSistema.map(usuario => ({
+            usuarioId: usuario.id_usuario,
+            notificacaoId: novaNotificacao.id_notificacao,
+          })),
         });
       }
 

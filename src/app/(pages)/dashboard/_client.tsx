@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowUp, ArrowDown, DollarSign, ShoppingCart, AlertTriangle, Clock, PackageCheck, Loader2 } from "lucide-react";
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { DateRange } from 'react-day-picker';
-import { endOfMonth, startOfMonth } from 'date-fns';
+import { endOfDay, endOfMonth, startOfDay, startOfMonth } from 'date-fns';
 
 // --- Tipagens para os dados do Dashboard ---
 type KpiData = {
@@ -83,12 +83,20 @@ export default function DashboardClient() {
     
     setIsLoading(true);
     try {
-      const fromISO = currentDate.from.toISOString();
-      const toISO = currentDate.to.toISOString();
+      // --- LÓGICA DE DATA REFORÇADA ---
+      // Pega o início do primeiro dia do intervalo (ex: 18/06 às 00:00:00)
+      const fromDate = startOfDay(currentDate.from);
+      
+      // Pega o fim do último dia do intervalo (ex: 18/06 às 23:59:59)
+      // Se 'to' não existir (ex: selecionou só "hoje"), usa o mesmo dia de 'from'.
+      const toDate = endOfDay(currentDate.to || currentDate.from);
+
+      const fromISO = fromDate.toISOString();
+      const toISO = toDate.toISOString();
 
       const [kpisRes, alertsRes, salesRes, categoryRes] = await Promise.all([
         fetch(`/api/dashboard/kpis?from=${fromISO}&to=${toISO}`),
-        fetch(`/api/dashboard/alerts?from=${fromISO}&to=${toISO}`), // Adapte esta API se necessário
+        fetch(`/api/dashboard/alerts?from=${fromISO}&to=${toISO}`),
         fetch(`/api/dashboard/sales-over-time?from=${fromISO}&to=${toISO}`),
         fetch(`/api/dashboard/sales-by-category?from=${fromISO}&to=${toISO}`),
       ]);

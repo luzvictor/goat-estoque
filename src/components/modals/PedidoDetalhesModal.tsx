@@ -1,27 +1,30 @@
 // Em: src/components/modals/PedidoDetalhesModal.tsx
 
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
+import { Loader2 } from 'lucide-react';
+import { Pedido as PedidoSimplificado } from "@/types"; // Usado para a prop onStatusChange
 
-// Tipagem do Pedido
-type Pedido = {
-  id: string; data: string; status: string;
-  produtos: {
-    id: string; quantidade: number;
-    variante: { id_variante: string; produtoBase: { nome: string; marca: string }; cor: string; tamanho: string | null; valorVenda: number };
-  }[];
-  Usuario: { nome: string } | null;
+// Tipagem para o pedido completo que será buscado pela API
+type PedidoCompleto = PedidoSimplificado & {
+  Cliente: {
+    nome: string;
+    cpf: string | null;
+    telefone: string | null;
+    endereco: string | null;
+  } | null;
 };
 
-// NOVO: Adicionada a prop onStatusChange na interface
+// A prop agora é 'pedidoId'
 interface PedidoDetalhesModalProps {
-  pedido: Pedido | null;
+  pedidoId: string | null;
   onClose: () => void;
-  onStatusChange: (newStatus: string) => void;
+  onStatusChange: (pedidoId: string, newStatus: string) => void;
 }
 
 const STATUS_OPTIONS = ["Pendente", "Enviado", "Concluído", "Cancelado"];
@@ -39,89 +42,144 @@ const formatCurrency = (value: number): string => {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 };
 
-// ALTERADO: A função agora aceita a prop 'onStatusChange'
-export function PedidoDetalhesModal({ pedido, onClose, onStatusChange }: PedidoDetalhesModalProps) {
-  if (!pedido) return null;
+export function PedidoDetalhesModal({ pedidoId, onClose, onStatusChange }: PedidoDetalhesModalProps) {
+  // Novos estados para carregar e guardar os dados completos
+  const [pedido, setPedido] = useState<PedidoCompleto | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const totalPedido = pedido.produtos.reduce((acc, p) => acc + (p.quantidade * p.variante.valorVenda), 0);
+  // useEffect para buscar os dados na API quando o modal abre (quando pedidoId muda)
+  useEffect(() => {
+    async function fetchPedidoDetails() {
+      if (!pedidoId) return;
+
+      setIsLoading(true);
+      try {
+        const response = await fetch(`/api/pedidos/${pedidoId}`);
+        if (response.ok) {
+          const data = await response.json();
+          setPedido(data);
+        } else {
+          console.error("Falha ao buscar detalhes do pedido");
+          alert("Não foi possível carregar os detalhes do pedido.");
+          onClose();
+        }
+      } catch (error) {
+        console.error("Erro de rede:", error);
+        onClose();
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    fetchPedidoDetails();
+  }, [pedidoId, onClose]);
+  
+  // Limpa os dados ao fechar para garantir que o loading apareça da próxima vez
+  const handleClose = () => {
+    setPedido(null);
+    onClose();
+  }
+
+  const totalPedido = pedido ? pedido.produtos.reduce((acc, p) => acc + (p.quantidade * p.variante.valorVenda), 0) : 0;
 
   return (
-    <Dialog open={!!pedido} onOpenChange={(isOpen) => !isOpen && onClose()}>
+    <Dialog open={!!pedidoId} onOpenChange={(isOpen) => !isOpen && handleClose()}>
       <DialogContent className="max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>Detalhes do Pedido</DialogTitle>
-          <DialogDescription>ID: {pedido.id}</DialogDescription>
-        </DialogHeader>
+        {isLoading ? (
+          <div className="flex justify-center items-center h-96">
+              <Loader2 className="h-8 w-8 animate-spin text-accent" />
+          </div>
+        ) : pedido ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>Detalhes do Pedido</DialogTitle>
+              <DialogDescription>ID: {pedido.id}</DialogDescription>
+            </DialogHeader>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
-          <div>
-            <h3 className="font-semibold mb-2">Informações Gerais</h3>
-            <div className="text-sm space-y-2">
-              <p><strong>Data:</strong> {new Date(pedido.data).toLocaleDateString('pt-BR')}</p>
-              
-              {/* ALTERADO: Status agora é um Popover editável */}
-              <div className="flex items-center gap-2">
-                <strong>Status:</strong>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Badge variant={getStatusVariant(pedido.status)} className="cursor-pointer hover:opacity-80">
-                      {pedido.status}
-                    </Badge>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-2" align="start">
-                    <div className="flex flex-col gap-1">
-                      {STATUS_OPTIONS.map(statusOption => (
-                        <Button
-                          key={statusOption}
-                          variant={pedido.status === statusOption ? "default" : "ghost"}
-                          size="sm"
-                          className="w-full justify-start"
-                          onClick={() => onStatusChange(statusOption)}
-                          disabled={pedido.status === statusOption}
-                        >
-                          {statusOption}
-                        </Button>
-                      ))}
-                    </div>
-                  </PopoverContent>
-                </Popover>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+              <div>
+                <h3 className="font-semibold mb-2">Informações do Cliente</h3>
+                {/* Agora exibe todos os detalhes do cliente */}
+                {pedido.Cliente ? (
+                  <div className="text-sm space-y-1">
+                    <p><strong>Nome:</strong> {pedido.Cliente.nome}</p>
+                    <p><strong>CPF:</strong> {pedido.Cliente.cpf || 'Não informado'}</p>
+                    <p><strong>Telefone:</strong> {pedido.Cliente.telefone || 'Não informado'}</p>
+                    <p><strong>Endereço:</strong> {pedido.Cliente.endereco || 'Não informado'}</p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Cliente não identificado</p>
+                )}
               </div>
-              <p><strong>Cliente:</strong> {pedido.Usuario?.nome || 'Não identificado'}</p>
+               <div>
+                 <h3 className="font-semibold mb-2">Informações do Pedido</h3>
+                 <div className="text-sm space-y-2">
+                    <p><strong>Data:</strong> {new Date(pedido.data).toLocaleDateString('pt-BR')}</p>
+                    <div className="flex items-center gap-2">
+                        <strong>Status:</strong>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Badge variant={getStatusVariant(pedido.status)} className="cursor-pointer hover:opacity-80">
+                              {pedido.status}
+                            </Badge>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-2" align="start">
+                            <div className="flex flex-col gap-1">
+                              {STATUS_OPTIONS.map(statusOption => (
+                                <Button
+                                  key={statusOption}
+                                  variant={pedido.status === statusOption ? "default" : "ghost"}
+                                  size="sm"
+                                  className="w-full justify-start"
+                                  onClick={() => onStatusChange(pedido.id, statusOption)}
+                                  disabled={pedido.status === statusOption}
+                                >
+                                  {statusOption}
+                                </Button>
+                              ))}
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                    </div>
+                 </div>
+              </div>
             </div>
-          </div>
-        </div>
-        <Separator />
-        <div>
-          <h3 className="font-semibold mb-2">Itens do Pedido</h3>
-          <div className="border rounded-md max-h-64 overflow-y-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Produto</TableHead>
-                  <TableHead>Qtd.</TableHead>
-                  <TableHead>Preço Unit.</TableHead>
-                  <TableHead className="text-right">Subtotal</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {pedido.produtos.map(item => (
-                  <TableRow key={item.id}>
-                    <TableCell>
-                      <div className="font-medium">{item.variante.produtoBase.marca} - {item.variante.produtoBase.nome}</div>
-                      <div className="text-xs text-muted-foreground">{item.variante.cor}, {item.variante.tamanho || 'Único'}</div>
-                    </TableCell>
-                    <TableCell>{item.quantidade}</TableCell>
-                    <TableCell>{formatCurrency(item.variante.valorVenda)}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(item.variante.valorVenda * item.quantidade)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-          <div className="flex justify-end font-bold text-lg mt-4">
-            <span>Total: {formatCurrency(totalPedido)}</span>
-          </div>
-        </div>
+
+            <Separator />
+
+            <div>
+                <h3 className="font-semibold mb-2">Itens do Pedido</h3>
+                <div className="border rounded-md max-h-64 overflow-y-auto">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Produto</TableHead>
+                                <TableHead>Qtd.</TableHead>
+                                <TableHead>Preço Unit.</TableHead>
+                                <TableHead className="text-right">Subtotal</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {pedido.produtos.map(item => (
+                                <TableRow key={item.id}>
+                                    <TableCell>
+                                        <div className="font-medium">{item.variante.produtoBase.marca} - {item.variante.produtoBase.nome}</div>
+                                        <div className="text-xs text-muted-foreground">{item.variante.cor}, {item.variante.tamanho || 'Único'}</div>
+                                    </TableCell>
+                                    <TableCell>{item.quantidade}</TableCell>
+                                    <TableCell>{formatCurrency(item.variante.valorVenda)}</TableCell>
+                                    <TableCell className="text-right">{formatCurrency(item.variante.valorVenda * item.quantidade)}</TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
+                 <div className="flex justify-end font-bold text-lg mt-4">
+                    <span>Total: {formatCurrency(totalPedido)}</span>
+                </div>
+            </div>
+          </>
+        ) : null}
       </DialogContent>
     </Dialog>
   );
