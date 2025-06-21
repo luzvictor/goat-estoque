@@ -15,6 +15,7 @@ enum StatusPedido {
   Cancelado
 }
 
+
 model ProdutoBase {
   id_produto_base String @id @default(cuid())
   nome            String
@@ -72,17 +73,17 @@ model Pedido {
   produtos  PedidoProduto[] // Relacionamento com PedidoProduto
 
   clienteId String? // Pode ser uma venda sem cliente cadastrado
-  Cliente   Cliente? @relation(fields: [clienteId], references: [id_cliente])
+ Cliente   Cliente? @relation(fields: [clienteId], references: [id_cliente], onDelete: SetNull)
 
   // Relacionamento com o Usuario (quem criou o pedido no sistema)
   criadoPorUsuarioId String?
-  CriadoPor          Usuario? @relation(name: "PedidosCriados", fields: [criadoPorUsuarioId], references: [id_usuario])
+  CriadoPor Usuario? @relation(name: "PedidosCriados", fields: [criadoPorUsuarioId], references: [id_usuario], onDelete: SetNull)
 }
 
 model PedidoProduto {
   id       String @id @default(uuid())
   pedidoId String
-  pedido   Pedido @relation(fields: [pedidoId], references: [id])
+  pedido  Pedido @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
 
   varianteId String
   variante   VarianteProduto @relation(fields: [varianteId], references: [id_variante], onDelete: Restrict)
@@ -120,6 +121,7 @@ model Usuario {
 model Notificacao {
   id_notificacao String   @id @default(cuid())
   mensagem       String
+  link           String?
   dataEnvio      DateTime @default(now())
 
   usuarios NotificacaoUsuario[] // Relacionamento com NotificacaoUsuario

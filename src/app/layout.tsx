@@ -1,8 +1,10 @@
+// Em: src/app/layout.tsx
+
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
-import { AppShell } from "@/components/AppShell"; // 1. Importa o novo componente
+// Não precisamos mais importar o AppShell aqui
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -17,16 +19,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    // A classe "dark" aqui ativa o tema escuro para toda a aplicação.
-    <html lang="pt-BR" className="root" suppressHydrationWarning>
+    // A classe 'dark' foi removida para usar o tema claro como padrão
+    <html lang="pt-BR" suppressHydrationWarning>
       <body
         className={cn(
           "min-h-screen bg-background font-sans antialiased",
           inter.variable
         )}
       >
-        {/* 2. O AppShell agora gerencia qual layout será exibido para cada página */}
-        <AppShell>{children}</AppShell>
+        {/* Apenas renderizamos os 'children'. O layout específico virá das subpastas. */}
+        {children}
       </body>
     </html>
   );
