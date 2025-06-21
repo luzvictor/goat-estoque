@@ -6,8 +6,8 @@ import { usePathname } from 'next/navigation';
 import { Sidebar } from '@/components/Sidebar';
 import { MobileHeader } from '@/components/MobileHeader';
 
-// --- NOVOS IMPORTS ---
-import { NotificationBell } from '@/components/NotificationBell'; // Importa o sininho
+// --- Imports para o Header ---
+import { NotificationBell } from '@/components/NotificationBell';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { CircleUser } from 'lucide-react';
@@ -27,31 +27,28 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   // Para todas as outras rotas, renderiza o layout principal com a sidebar
+  // CORREÇÃO 1: 'h-screen' e 'overflow-hidden' para travar o layout na altura da tela
   return (
-    <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
-      {/* Sidebar para Desktop */}
+    <div className="grid h-screen w-full overflow-hidden md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
+      
+      {/* Sidebar para Desktop (fixa) */}
       <div className="hidden border-r bg-sidebar md:block">
         <Sidebar />
       </div>
 
-      {/* Conteúdo Principal */}
-      <div className="flex flex-col">
+      {/* Conteúdo Principal (com rolagem própria) */}
+      {/* CORREÇÃO 2: 'overflow-auto' para dar scroll apenas nesta coluna */}
+      <div className="flex flex-col overflow-auto">
         
-        {/* --- CABEÇALHO ATUALIZADO --- */}
-        <header className="flex h-14 items-center gap-4 border-b bg-card px-4 lg:h-[60px] lg:px-6">
-          {/* Mantém seu header de mobile, que provavelmente contém o botão de menu */}
+        <header className="flex h-14 items-center gap-4 border-b bg-card px-4 lg:h-[60px] lg:px-6 sticky top-0 z-10">
           <MobileHeader />
 
-          {/* Espaço para um futuro campo de busca, se desejar */}
           <div className="w-full flex-1">
-            {/* <SearchForm /> */}
+            {/* Espaço para um futuro campo de busca */}
           </div>
           
-          {/* Ícones de Ação à Direita */}
           <div className='flex items-center gap-4'>
             <NotificationBell />
-            
-            {/* Menu de Usuário (exemplo) */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="secondary" size="icon" className="rounded-full">

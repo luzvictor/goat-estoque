@@ -1,10 +1,11 @@
 // Em: src/types/index.ts
 
-export type Cliente = {
+type Cliente = {
   id_cliente: string;
   nome: string;
   cpf?: string | null;
-  // Adicione outros campos se necessário, como telefone e endereco
+  endereco?: string | null; // <-- Campo adicionado
+  telefone?: string | null; // <-- Campo adicionado
 };
 
 export type VarianteProduto = {

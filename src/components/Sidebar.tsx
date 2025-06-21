@@ -13,7 +13,7 @@ const navLinks = [
   { href: "/dashboard", label: "Dashboard", icon: Home },
   { href: "/produtos", label: "Produtos", icon: Package },
   { href: "/pedidos", label: "Pedidos", icon: ShoppingCart },
-  { href: "/usuarios", label: "Usuários", icon: Users },
+  { href: "/clientes", label: "Clientes", icon: Users },
 ];
 
 export function Sidebar() {
