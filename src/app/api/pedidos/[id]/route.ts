@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
+import { criarNotificacaoParaAdmins } from "@/lib/notifications";
 
 // =================================================================
 //           INÍCIO DA LÓGICA DE ATUALIZAÇÃO CORRIGIDA
@@ -40,13 +41,24 @@ export async function PUT(
       );
     }
 
-    // "Traduz" o status para o formato do banco de dados
     const statusBackend = statusMap[statusFrontend];
 
     const pedidoAtualizado = await prisma.pedido.update({
       where: { id: id },
       data: { status: statusBackend },
     });
+
+    // =======================================================
+    // PASSO NOVO: Notificar se o pedido for cancelado
+    // =======================================================
+    if (statusFrontend === 'Cancelado') {
+        await criarNotificacaoParaAdmins({
+            // Fora de uma transação, passamos o cliente prisma diretamente
+            tx: prisma, 
+            mensagem: `O Pedido #${id.substring(0, 8)} foi cancelado.`,
+            link: `/pedidos` // Link para a página de pedidos
+        });
+    }
 
     return NextResponse.json(pedidoAtualizado);
 
@@ -58,6 +70,7 @@ export async function PUT(
     return NextResponse.json({ error: "Erro interno ao atualizar o pedido." }, { status: 500 });
   }
 }
+
 
 // =================================================================
 //          FIM DA LÓGICA DE ATUALIZAÇÃO CORRIGIDA

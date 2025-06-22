@@ -3,6 +3,10 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
+import { getUsuarioDaSessao } from "@/lib/session";
+import { criarNotificacaoParaAdmins } from "@/lib/notifications";
+
+console.log('STATUS DA IMPORTAÇÃO getUsuarioDaSessao:', typeof getUsuarioDaSessao);
 
 /**
  * GET: Lista todos os pedidos do sistema, incluindo detalhes dos produtos,
@@ -73,6 +77,11 @@ export async function GET(request: Request) {
  */
 export async function POST(request: Request) {
   try {
+    const usuarioLogado = await getUsuarioDaSessao();
+    if (!usuarioLogado) {
+      return NextResponse.json({ error: "Apenas usuários autenticados podem criar pedidos." }, { status: 401 });
+    }
+    
     const body = await request.json();
     const { clienteId, produtos } = body;
 
@@ -80,7 +89,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "O pedido deve conter pelo menos um produto." }, { status: 400 });
     }
 
-    const pedidoCriado = await prisma.$transaction(async (tx) => {
+    const pedidoComCliente = await prisma.$transaction(async (tx) => {
       // Passo 1: Verificar estoque
       for (const produto of produtos) {
         const varianteEmEstoque = await tx.varianteProduto.findUnique({
@@ -95,6 +104,7 @@ export async function POST(request: Request) {
       const pedido = await tx.pedido.create({
         data: {
           clienteId: clienteId || null,
+          criadoPorUsuarioId: usuarioLogado.id_usuario,
           produtos: {
             create: produtos.map((p: { varianteId: string, quantidade: number }) => ({
               varianteId: p.varianteId,
@@ -102,51 +112,51 @@ export async function POST(request: Request) {
             })),
           },
         },
+        include: { // Incluímos o cliente para usar o nome na notificação
+          Cliente: { select: { nome: true } }
+        }
       });
 
-      // Passo 3: Dar baixa no estoque
+      // Passo 3: Dar baixa no estoque e verificar o nível para alertas
       for (const produto of produtos) {
-        await tx.varianteProduto.update({
+        const varianteAtualizada = await tx.varianteProduto.update({
           where: { id_variante: produto.varianteId },
           data: {
-            quantidade: {
-              decrement: produto.quantidade,
-            },
+            quantidade: { decrement: produto.quantidade },
           },
+          include: { produtoBase: true },
         });
+
+        // LÓGICA DE ALERTA DE ESTOQUE
+        const { quantidade, estoqueMin, produtoBase, cor, tamanho } = varianteAtualizada;
+        const nomeProduto = `${produtoBase.marca} - ${produtoBase.nome} (${cor}, ${tamanho || 'Único'})`;
+
+        if (quantidade <= 0) {
+          await criarNotificacaoParaAdmins({
+            tx,
+            mensagem: `ESTOQUE ZERADO: O produto ${nomeProduto} acabou!`,
+            link: `/produtos`
+          });
+        } else if (estoqueMin > 0 && quantidade <= estoqueMin) {
+          await criarNotificacaoParaAdmins({
+            tx,
+            mensagem: `Estoque Baixo: Restam apenas ${quantidade} unidades de ${nomeProduto}.`,
+            link: `/produtos`
+          });
+        }
       }
       
-      // =======================================================
-      // PASSO 4: CRIAR E ENVIAR A NOTIFICAÇÃO (NOVA LÓGICA)
-      // =======================================================
-      
-      // Busca todos os usuários do sistema para notificá-los.
-      const usuariosDoSistema = await tx.usuario.findMany({
-        select: { id_usuario: true },
+      // Passo 4: Notificação de Novo Pedido
+      await criarNotificacaoParaAdmins({
+         tx,
+         mensagem: `Novo pedido de ${pedido.Cliente?.nome || 'um cliente sem cadastro'} foi criado.`,
+         link: `/pedidos` // Link para a lista de pedidos
       });
-
-      // Só cria a notificação se existirem usuários para notificar.
-      if (usuariosDoSistema.length > 0) {
-        // Cria a notificação principal.
-        const novaNotificacao = await tx.notificacao.create({
-          data: {
-            mensagem: `Novo pedido recebido! ID: #${pedido.id.substring(0, 8)}`,
-          },
-        });
-
-        // Cria as entradas na tabela de junção 'NotificacaoUsuario' para cada usuário.
-        await tx.notificacaoUsuario.createMany({
-          data: usuariosDoSistema.map(usuario => ({
-            usuarioId: usuario.id_usuario,
-            notificacaoId: novaNotificacao.id_notificacao,
-          })),
-        });
-      }
 
       return pedido;
     });
 
-    return NextResponse.json(pedidoCriado, { status: 201 });
+    return NextResponse.json(pedidoComCliente, { status: 201 });
 
   } catch (error: any) {
     console.error("Erro ao criar pedido:", error);

@@ -1,6 +1,6 @@
 // Em: src/types/index.ts
 
-type Cliente = {
+export type Cliente = {
   id_cliente: string;
   nome: string;
   cpf?: string | null;
