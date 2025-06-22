@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 
 // --- CORREÇÃO: Importando as tipagens centralizadas ---
 import { Cliente, Pedido, ProdutoBase, VarianteProduto, NewOrderItem } from "@/types";
+import { toast } from "sonner";
 
 const STATUS_OPTIONS = ["Pendente", "Enviado", "Concluído", "Cancelado"];
 
@@ -130,52 +131,44 @@ export default function PedidosPageClient() {
   
   async function handleUpdateStatus(pedidoId: string, newStatus: string) {
     const originalPedidos = [...pedidos];
-    const pedido = originalPedidos.find(p => p.id === pedidoId);
-    if (!pedido || pedido.status === newStatus) return;
-
-    // A única responsabilidade da página é atualizar sua própria lista (otimismo)
-    setPedidos(currentPedidos => 
-      currentPedidos.map(p => p.id === pedidoId ? { ...p, status: newStatus } : p)
-    );
-
-    // O modal de detalhes agora se atualiza sozinho ao reabrir/buscar dados.
-    // Não precisamos mais gerenciar o estado dele aqui.
-
+    setPedidos(current => current.map(p => p.id === pedidoId ? { ...p, status: newStatus } : p));
     try {
-      const response = await fetch(`/api/pedidos/${pedidoId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus }),
-      });
+      const response = await fetch(`/api/pedidos/${pedidoId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: newStatus }) });
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Falha ao atualizar o status');
+        throw new Error(errorData.error || 'Falha ao atualizar status');
       }
+      toast.success("Status do pedido atualizado!");
     } catch (error: any) {
-      alert(`Não foi possível atualizar o status: ${error.message}. Revertendo.`);
-      // Se a API falhar, revertemos a lista na página principal
+      toast.error("Erro ao atualizar status", { description: error.message });
       setPedidos(originalPedidos);
     }
   }
+
+  const openDeleteAlert = (pedido: Pedido) => {
+    setOrderToDelete(pedido.id);
+    setIsAlertOpen(true);
+  };
   
   async function handleDeleteOrder() {
     if (!orderToDelete) return;
+    setIsSubmitting(true);
     const originalPedidos = [...pedidos];
     setPedidos(current => current.filter(p => p.id !== orderToDelete));
-    
     try {
       const response = await fetch(`/api/pedidos/${orderToDelete}`, { method: 'DELETE' });
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Falha ao remover pedido');
       }
-      alert("Pedido removido com sucesso!");
+      toast.success("Pedido removido com sucesso!");
     } catch (error: any) {
-      alert(`Não foi possível remover o pedido: ${error.message}.`);
+      toast.error("Falha ao remover pedido", { description: error.message });
       setPedidos(originalPedidos);
     } finally {
       setOrderToDelete(null);
       setIsAlertOpen(false);
+      setIsSubmitting(false);
     }
   }
   
@@ -202,11 +195,11 @@ export default function PedidosPageClient() {
   function handleAddItemToOrder() {
     const produto = produtosDisponiveis.find(p => p.id_variante === selectedVariant);
     if (!produto || itemQuantity <= 0) {
-      alert("Selecione um produto e uma quantidade válida.");
+      toast.warning("Dados inválidos", { description: "Selecione um produto e uma quantidade válida." });
       return;
     }
     if (itemQuantity > produto.quantidade) {
-      alert(`Estoque insuficiente. Disponível: ${produto.quantidade}`);
+      toast.error("Estoque insuficiente", { description: `A quantidade máxima para este item é ${produto.quantidade}.` });
       return;
     }
     setNewOrderItems(prev => {
@@ -231,56 +224,48 @@ export default function PedidosPageClient() {
   }
 
   async function handleCreateOrder() {
-  if (newOrderItems.length === 0) {
-    alert("Adicione pelo menos um item.");
-    return;
-  }
-  setIsSubmitting(true);
-  const body = {
-    clienteId: selectedCliente ? selectedCliente.id_cliente : null,
-    produtos: newOrderItems.map(item => ({ varianteId: item.varianteId, quantidade: item.quantidade }))
-  };
-  try {
-    const response = await fetch('/api/pedidos', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-
-    if (response.ok) {
-      alert('Pedido criado com sucesso!');
-      setCreateModalOpen(false);
-      // --- CORREÇÃO AQUI ---
-      // Passando os filtros atuais ao recarregar a lista de pedidos.
-      await fetchInitialData(selectedMonth, selectedYear);
-    } else {
-      const errorData = await response.json();
-      alert(`Erro ao criar pedido: ${errorData.error}`);
+    if (newOrderItems.length === 0) {
+      toast.warning("Pedido vazio", { description: "Adicione pelo menos um item ao pedido." });
+      return;
     }
-  } catch (error) {
-    alert("Ocorreu um erro de rede.");
-  } finally {
-    setIsSubmitting(false);
+    setIsSubmitting(true);
+    const body = {
+      clienteId: selectedCliente ? selectedCliente.id_cliente : null,
+      produtos: newOrderItems.map(item => ({ varianteId: item.varianteId, quantidade: item.quantidade }))
+    };
+    try {
+      const response = await fetch('/api/pedidos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Não foi possível criar o pedido.");
+      
+      toast.success("Pedido criado com sucesso!");
+      setCreateModalOpen(false);
+      await fetchInitialData(selectedMonth, selectedYear);
+    } catch (error: any) {
+      toast.error("Erro ao criar pedido", { description: error.message });
+    } finally {
+      setIsSubmitting(false);
+    }
   }
-}
   
   async function handleCreateNewCliente() {
-    if (!newClienteForm.nome) { alert("O nome é obrigatório."); return; }
+    if (!newClienteForm.nome) { 
+      toast.error("Campo obrigatório", { description: "O nome do cliente não pode estar vazio." });
+      return; 
+    }
     setIsSubmitting(true);
     try {
       const response = await fetch('/api/clientes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newClienteForm) });
-      const newCliente: Cliente = await response.json();
-      if (response.ok) {
-        alert("Cliente cadastrado com sucesso!");
-        setSelectedCliente(newCliente);
-        setIsNewClienteModalOpen(false);
-        setClienteSearch(newCliente.nome);
-        setClienteResults([]);
-      } else {
-        throw new Error(newCliente.error || "Falha ao criar cliente");
-      }
+      const newCliente = await response.json();
+      if (!response.ok) throw new Error(newCliente.error || "Falha ao criar cliente");
+      
+      toast.success("Cliente cadastrado com sucesso!");
+      setSelectedCliente(newCliente);
+      setIsNewClienteModalOpen(false);
+      setClienteSearch(newCliente.nome);
+      setClienteResults([]);
     } catch (error: any) {
-      alert(`Erro: ${error.message}`);
+      toast.error("Erro ao salvar cliente", { description: error.message });
     } finally {
       setIsSubmitting(false);
     }
@@ -592,17 +577,18 @@ export default function PedidosPageClient() {
       </Dialog>
       
       <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
-         <AlertDialogContent>
+        <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta ação não pode ser desfeita. O pedido será permanentemente removido
-              e o estoque dos produtos será revertido.
+              Esta ação não pode ser desfeita. O pedido será permanentemente removido e o estoque dos produtos será revertido.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setOrderToDelete(null)}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteOrder}>Confirmar Remoção</AlertDialogAction>
+            <AlertDialogAction onClick={handleDeleteOrder} disabled={isSubmitting}>
+              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin"/> : "Confirmar Remoção"}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

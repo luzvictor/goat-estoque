@@ -1,6 +1,6 @@
   'use client'
 
-  import { useState, useEffect, useMemo } from "react";
+  import { useState, useEffect, useMemo, useCallback } from "react";
   import { Button } from "@/components/ui/button";
   import {
     Dialog,
@@ -10,12 +10,6 @@
     DialogFooter,
     DialogTitle,
   } from "@/components/ui/dialog";
-  import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-  } from "@/components/ui/dropdown-menu";
   import {
     Popover,
     PopoverContent,
@@ -45,6 +39,7 @@
   import { cn } from "@/lib/utils";
   import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
 
   // Funções de formatação e parse de moeda
   const formatCurrency = (value: string | number): string => {
@@ -83,6 +78,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
     const [produtosBase, setProdutosBase] = useState<ProdutoBase[]>([]);
     const [searchTerm, setSearchTerm] = useState("");
     const [isLoading, setIsLoading] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     
     // Estados dos modais
     const [isCreateModalOpen, setCreateModalOpen] = useState(false);
@@ -97,7 +93,6 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 
     const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false);
     const [variantToDelete, setVariantToDelete] = useState<ProdutoDisplay | null>(null);
-    const [infoAlert, setInfoAlert] = useState<{ title: string; message: string; } | null>(null);
 
     // --- FUNÇÃO CENTRALIZADA PARA LIMPAR FORMULÁRIOS ---
     const resetForms = () => {
@@ -108,183 +103,163 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
     };
     
     // --- FUNÇÕES DE API E AÇÕES DO USUÁRIO ---
-    async function fetchProdutos() {
-      setIsLoading(true);
-      try {
-          const res = await fetch("/api/produtos"); 
-          if (!res.ok) throw new Error("Falha ao buscar produtos");
-          const data: ProdutoBase[] = await res.json();
-          setProdutosBase(data);
-      } catch(error) {
-          console.error("Erro em fetchProdutos:", error);
-      } finally {
-          setIsLoading(false);
-      }
+    const fetchProdutos = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch("/api/produtos"); 
+      if (!res.ok) throw new Error("Falha ao buscar produtos do servidor.");
+      const data: ProdutoBase[] = await res.json();
+      setProdutosBase(data);
+    } catch(error: any) {
+      toast.error("Erro de Rede", { description: error.message });
+    } finally {
+      setIsLoading(false);
     }
+  }, []);
 
-    async function criarProduto() {
+  useEffect(() => { fetchProdutos(); }, [fetchProdutos]);
+  useEffect(() => { if (editingItem) setEditModalOpen(true); }, [editingItem]);
+  useEffect(() => { if (!isCreateModalOpen && !isEditModalOpen && !isEntryModalOpen) { resetForms(); } }, [isCreateModalOpen, isEditModalOpen, isEntryModalOpen]);
+  
+  const displayProdutos = useMemo(() => {
+    return produtosBase.flatMap(base => 
+      base.variantes.map(variante => ({ ...variante, ...base, id_produto_base: base.id_produto_base, nome: base.nome }))
+    ).filter(p => searchTerm.trim() === '' || 
+      Object.values(p).some(val => String(val).toLowerCase().includes(searchTerm.toLowerCase().trim()))
+    );
+  }, [produtosBase, searchTerm]);
+
+  const handleBaseInputChange = (e: React.ChangeEvent<HTMLInputElement>) => setFormBase(prev => ({ ...prev, [e.target.id]: e.target.value }));
+  const handleVarianteInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { id, value } = e.target;
+    setFormVariante(prev => ({ ...prev, [id]: ['quantidade', 'estoqueMin'].includes(id) ? Number(value) : value }));
+  };
+  const handleCreateCurrencyChange = (e: React.ChangeEvent<HTMLInputElement>, campo: "valorCusto" | "valorVenda") => setFormVariante(prev => ({ ...prev, [campo]: formatCurrency(e.target.value) }));
+  
+  const handleEditInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!editingItem) return;
+    const { id, value } = e.target;
+    setEditingItem(prev => prev ? { ...prev, [id]: value } : null);
+  };
+  const handleEditCurrencyChange = (e: React.ChangeEvent<HTMLInputElement>, campo: "valorCusto" | "valorVenda") => {
+    if (!editingItem) return;
+    setEditingItem(prev => prev ? { ...prev, [campo]: formatCurrency(e.target.value) } : null);
+  };
+
+  // --- FUNÇÕES DE API ATUALIZADAS COM toast() ---
+
+  async function criarProduto() {
     if (!formBase.nome.trim() || !formBase.categoria.trim() || !formBase.marca.trim() || !formVariante.cor.trim()) {
-      setInfoAlert({ title: "Campos Incompletos", message: "Por favor, preencha nome, categoria, marca e cor para criar um novo produto." });
+      toast.error("Campos obrigatórios", { description: "Por favor, preencha nome, categoria, marca e cor." });
       return;
     }
-      setIsLoading(true);
-      const requestBody = {
-        ...formBase,
-        variantes: [{
-            ...formVariante,
-            valorCusto: parseCurrency(formVariante.valorCusto),
-            valorVenda: parseCurrency(formVariante.valorVenda),
-            quantidade: Number(formVariante.quantidade),
-            estoqueMin: Number(formVariante.estoqueMin),
-        }]
-      };
-      try {
-          const response = await fetch("/api/produtos", { 
-          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(requestBody) });
-          if (response.ok) {
-                setCreateModalOpen(false);
-                await fetchProdutos();
-                setInfoAlert({ title: "Sucesso!", message: "Produto criado com sucesso." });
-              } else {
-                const errorData = await response.json();
-                setInfoAlert({ title: "Erro ao Criar", message: errorData.error || "Não foi possível criar o produto." });
-              }
-            } catch(error) {
-              setInfoAlert({ title: "Erro de Rede", message: "Ocorreu um erro de comunicação com o servidor." });
-            } finally {
-              setIsLoading(false);
-            }
-          }
-
-    async function handleDeleteVariant() {
-      if (!variantToDelete) return;
+    setIsSubmitting(true);
+    const requestBody = {
+      ...formBase,
+      variantes: [{
+        ...formVariante,
+        valorCusto: parseCurrency(formVariante.valorCusto),
+        valorVenda: parseCurrency(formVariante.valorVenda),
+        quantidade: Number(formVariante.quantidade),
+        estoqueMin: Number(formVariante.estoqueMin),
+      }]
+    };
+    try {
+      const response = await fetch("/api/produtos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(requestBody) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Não foi possível criar o produto.");
       
-      setIsLoading(true);
-      try {
-        const response = await fetch(`/api/variantes/${variantToDelete.id_variante}`, { method: "DELETE" });
-        if (response.ok) {
-          await fetchProdutos();
-          setInfoAlert({ title: "Sucesso!", message: "Variante excluída com sucesso." });
-        } else {
-          const errorData = await response.json();
-          setInfoAlert({ title: "Erro ao Excluir", message: errorData.error || 'Não foi possível excluir a variante.' });
-        }
-      } catch(error) {
-        setInfoAlert({ title: "Erro de Rede", message: "Ocorreu um erro de comunicação com o servidor." });
-      } finally {
-        setIsLoading(false);
-        setVariantToDelete(null);
-        setIsDeleteAlertOpen(false);
-      }
+      setCreateModalOpen(false);
+      await fetchProdutos();
+      toast.success("Produto criado com sucesso!");
+    } catch(error: any) {
+      toast.error("Erro ao criar produto", { description: error.message });
+    } finally {
+      setIsSubmitting(false);
     }
+  }
 
-    async function handleUpdateProduct() {
-      if (!editingItem) return;
-      setIsLoading(true);
-      const { id_produto_base, id_variante, nome, marca, categoria, ...variantDataOnly } = editingItem;
-      const baseData = { nome, marca, categoria };
-      const variantData = {
-        cor: variantDataOnly.cor, tamanho: variantDataOnly.tamanho, sku: variantDataOnly.sku,
-        quantidade: Number(variantDataOnly.quantidade) || 0,
-        estoqueMin: Number(variantDataOnly.estoqueMin) || 0,
-        valorCusto: parseCurrency(variantDataOnly.valorCusto),
-        valorVenda: parseCurrency(variantDataOnly.valorVenda),
-      };
-      try {
-        const [baseResponse, variantResponse] = await Promise.all([
-          fetch(`/api/produtos/${id_produto_base}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(baseData) }),
-          fetch(`/api/variantes/${id_variante}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(variantData) })
-        ]);
-        if (baseResponse.ok && variantResponse.ok) {
-              setEditModalOpen(false);
-              await fetchProdutos();
-              setInfoAlert({ title: "Sucesso!", message: "Produto atualizado com sucesso." });
-            } else {
-              const baseError = baseResponse.ok ? null : await baseResponse.json();
-              const variantError = variantResponse.ok ? null : await variantResponse.json();
-              setInfoAlert({ title: "Falha ao Atualizar", message: `Erros:\nBase: ${baseError?.error || 'OK'}\nVariante: ${variantError?.error || 'OK'}`});
-            }
-          } catch (error) {
-            setInfoAlert({ title: "Erro de Rede", message: "Ocorreu um erro de comunicação com o servidor." });
-          } finally {
-            setIsLoading(false);
-          }
-        }
-    
-    async function handleRegisterEntry() {
-      if (!entryForm.varianteId) { setInfoAlert({ title: "Campo Faltando", message: "Por favor, selecione uma variante." }); return; }
-      if (!entryForm.quantidade || entryForm.quantidade <= 0) { setInfoAlert({ title: "Quantidade Inválida", message: "Por favor, insira uma quantidade válida." }); return; }
-      setIsLoading(true);
-      try {
-        const response = await fetch('/api/entradas', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            varianteId: entryForm.varianteId,
-            quantidade: Number(entryForm.quantidade),
-            numeroNota: entryForm.numeroNota,
-          }),
-        });
-        if (response.ok) {
-              setEntryModalOpen(false);
-              await fetchProdutos();
-              setInfoAlert({ title: "Sucesso!", message: "Entrada de estoque registrada." });
-            } else {
-              const errorData = await response.json();
-              setInfoAlert({ title: "Erro ao Registrar Entrada", message: errorData.error });
-            }
-          } catch (error) {
-            setInfoAlert({ title: "Erro de Rede", message: "Ocorreu um erro de comunicação com o servidor." });
-          } finally {
-            setIsLoading(false);
-          }
-        }
+  const openDeleteAlert = (produto: ProdutoDisplay) => {
+    setVariantToDelete(produto);
+    setIsDeleteAlertOpen(true);
+  };
 
-    // --- FUNÇÕES DE FORMULÁRIO ---
-    const handleBaseInputChange = (e: React.ChangeEvent<HTMLInputElement>) => setFormBase(prev => ({ ...prev, [e.target.id]: e.target.value }));
-    const handleVarianteInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const { id, value } = e.target;
-      setFormVariante(prev => ({ ...prev, [id]: ['quantidade', 'estoqueMin'].includes(id) ? Number(value) : value }));
-    };
-    const handleCreateCurrencyChange = (e: React.ChangeEvent<HTMLInputElement>, campo: "valorCusto" | "valorVenda") => setFormVariante(prev => ({ ...prev, [campo]: formatCurrency(e.target.value) }));
-    
-    const handleEditInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (!editingItem) return;
-      const { id, value } = e.target;
-      setEditingItem(prev => prev ? { ...prev, [id]: value } : null);
-    };
-    const handleEditCurrencyChange = (e: React.ChangeEvent<HTMLInputElement>, campo: "valorCusto" | "valorVenda") => {
-      if (!editingItem) return;
-      setEditingItem(prev => prev ? { ...prev, [campo]: formatCurrency(e.target.value) } : null);
-    };
-    
-    // --- LÓGICA DE EXIBIÇÃO E EFEITOS ---
-    const displayProdutos = useMemo(() => {
-      return produtosBase.flatMap(base => 
-        base.variantes.map(variante => ({
-            id_variante: variante.id_variante, id_produto_base: base.id_produto_base, nome: base.nome,
-            categoria: base.categoria, marca: base.marca, cor: variante.cor, tamanho: variante.tamanho,
-            quantidade: variante.quantidade, valorCusto: variante.valorCusto, valorVenda: variante.valorVenda,
-            estoqueMin: variante.estoqueMin, sku: variante.sku
-        }))
-      ).filter(p => 
-          searchTerm.trim() === '' || 
-          Object.values(p).some(val => String(val).toLowerCase().includes(searchTerm.toLowerCase().trim()))
-      );
-    }, [produtosBase, searchTerm]);
-    
-    useEffect(() => {
-      fetchProdutos();
-    }, []);
-
-    // --- NOVA LÓGICA PARA ABRIR O MODAL DE EDIÇÃO ---
-    // Este useEffect "assiste" a variável `editingItem`.
-    // Quando ela é preenchida, ele abre o modal.
-    useEffect(() => {
-      if (editingItem) {
-        setEditModalOpen(true);
+  async function handleDeleteVariant() {
+    if (!variantToDelete) return;
+    setIsSubmitting(true);
+    try {
+      const response = await fetch(`/api/variantes/${variantToDelete.id_variante}`, { method: "DELETE" });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Não foi possível excluir a variante.');
       }
-    }, [editingItem]);
+      toast.success("Variante excluída com sucesso!");
+      await fetchProdutos();
+    } catch(error: any) {
+      toast.error("Erro ao excluir", { description: error.message });
+    } finally {
+      setIsSubmitting(false);
+      setIsDeleteAlertOpen(false);
+      setVariantToDelete(null);
+    }
+  }
 
+  async function handleUpdateProduct() {
+    if (!editingItem) return;
+    setIsSubmitting(true);
+    const { id_produto_base, id_variante, nome, marca, categoria, ...variantDataOnly } = editingItem;
+    const baseData = { nome, marca, categoria };
+    const variantData = {
+      cor: variantDataOnly.cor, tamanho: variantDataOnly.tamanho, sku: variantDataOnly.sku,
+      quantidade: Number(variantDataOnly.quantidade) || 0,
+      estoqueMin: Number(variantDataOnly.estoqueMin) || 0,
+      valorCusto: parseCurrency(variantDataOnly.valorCusto),
+      valorVenda: parseCurrency(variantDataOnly.valorVenda),
+    };
+    try {
+      const [baseResponse, variantResponse] = await Promise.all([
+        fetch(`/api/produtos/${id_produto_base}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(baseData) }),
+        fetch(`/api/variantes/${id_variante}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(variantData) })
+      ]);
+
+      const baseResult = await baseResponse.json();
+      const variantResult = await variantResponse.json();
+
+      if (!baseResponse.ok || !variantResponse.ok) {
+        const errors = [];
+        if (!baseResponse.ok) errors.push(`Base: ${baseResult.error}`);
+        if (!variantResponse.ok) errors.push(`Variante: ${variantResult.error}`);
+        throw new Error(errors.join('\n'));
+      }
+
+      setEditModalOpen(false);
+      await fetchProdutos();
+      toast.success("Produto atualizado com sucesso!");
+    } catch (error: any) {
+      toast.error("Falha ao atualizar", { description: error.message });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+  
+  async function handleRegisterEntry() {
+    if (!entryForm.varianteId) { toast.error("Selecione um produto."); return; }
+    if (!entryForm.quantidade || entryForm.quantidade <= 0) { toast.error("Insira uma quantidade válida."); return; }
+    setIsSubmitting(true);
+    try {
+      const response = await fetch('/api/entradas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(entryForm) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error);
+      
+      toast.success("Entrada de estoque registrada!");
+      setEntryModalOpen(false);
+      await fetchProdutos();
+    } catch (error: any) {
+      toast.error("Erro ao registrar entrada", { description: error.message });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
 
     return (
       <div className="flex flex-col gap-4">
@@ -498,31 +473,17 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
           <AlertDialogHeader>
             <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta ação não pode ser desfeita. A variante "{variantToDelete?.nome} - {variantToDelete?.cor}" será permanentemente removida.
-              Se for a última variante, o produto base também será excluído.
+              A ação de excluir a variante "{variantToDelete?.nome} - {variantToDelete?.cor}" não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setVariantToDelete(null)}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteVariant}>Confirmar Exclusão</AlertDialogAction>
+            <AlertDialogAction onClick={handleDeleteVariant} disabled={isSubmitting}>
+              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin"/> : 'Confirmar Exclusão'}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* NOVO: AlertDialog para exibir informações e erros */}
-      <AlertDialog open={!!infoAlert} onOpenChange={() => setInfoAlert(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{infoAlert?.title}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {infoAlert?.message}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction onClick={() => setInfoAlert(null)}>OK</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-      </div>
-    );
-  }
+    </div>
+  );
+}

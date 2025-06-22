@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2, PlusCircle, Trash2, MoreHorizontal, Edit } from "lucide-react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Cliente } from "@/types"; // Assumindo que você usa o types/index.ts
+import { toast } from "sonner";
 
 export default function ClientesPageClient() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -26,7 +27,6 @@ export default function ClientesPageClient() {
   const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false);
   const [clienteToDelete, setClienteToDelete] = useState<Cliente | null>(null);
   // NOVO: Estado unificado para alertas de informação/erro
-  const [infoAlert, setInfoAlert] = useState<{ title: string; message: string; } | null>(null);
 
   const fetchClientes = useCallback(async () => {
     setIsLoading(true);
@@ -36,7 +36,7 @@ export default function ClientesPageClient() {
       const data = await response.json();
       setClientes(data);
     } catch (error: any) {
-      setInfoAlert({ title: "Erro de Rede", message: error.message });
+      toast.error("Erro de Rede", { description: error.message });
     } finally {
       setIsLoading(false);
     }
@@ -71,7 +71,7 @@ export default function ClientesPageClient() {
 
   const handleFormSubmit = async () => {
     if (!clienteForm.nome) {
-      setInfoAlert({ title: "Campo Obrigatório", message: "O nome é obrigatório." });
+      toast.error("Campo Obrigatório", { description: "O nome do cliente não pode estar vazio." });
       return;
     }
     
@@ -86,13 +86,13 @@ export default function ClientesPageClient() {
         body: JSON.stringify(clienteForm),
       });
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "Ocorreu um erro.");
+      if (!response.ok) throw new Error(result.error || "Ocorreu um erro desconhecido.");
 
+      toast.success(`Cliente ${editingCliente ? 'atualizado' : 'criado'} com sucesso!`);
       setIsModalOpen(false);
-      setInfoAlert({ title: "Sucesso!", message: `Cliente ${editingCliente ? 'atualizado' : 'criado'} com sucesso.` });
-      await fetchClientes();
+      setSearchTerm(""); // Limpa a busca para exibir a lista atualizada
     } catch (error: any) {
-      setInfoAlert({ title: "Erro", message: error.message });
+      toast.error("Erro ao salvar", { description: error.message });
     } finally {
       setIsSubmitting(false);
     }
@@ -112,10 +112,10 @@ export default function ClientesPageClient() {
         const errorData = await response.json();
         throw new Error(errorData.error || "Falha ao remover cliente.");
       }
-      setInfoAlert({ title: "Sucesso!", message: "Cliente removido com sucesso." });
-      await fetchClientes();
+      toast.success("Cliente removido com sucesso!");
+      await fetchClientes(); // Re-busca a lista
     } catch (error: any) {
-      setInfoAlert({ title: "Erro ao Remover", message: error.message });
+      toast.error("Erro ao remover", { description: error.message });
     } finally {
       setIsSubmitting(false);
       setIsDeleteAlertOpen(false);
@@ -242,16 +242,19 @@ export default function ClientesPageClient() {
       </AlertDialog>
 
       {/* NOVO: AlertDialog para exibir informações e erros */}
-      <AlertDialog open={!!infoAlert} onOpenChange={() => setInfoAlert(null)}>
+      <AlertDialog open={isDeleteAlertOpen} onOpenChange={setIsDeleteAlertOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{infoAlert?.title}</AlertDialogTitle>
+            <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
             <AlertDialogDescription>
-              {infoAlert?.message}
+              Esta ação não pode ser desfeita. O cliente "{clienteToDelete?.nome}" será removido. Os pedidos associados a ele não serão apagados, mas perderão o vínculo.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogAction onClick={() => setInfoAlert(null)}>OK</AlertDialogAction>
+            <AlertDialogCancel onClick={() => setClienteToDelete(null)}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteCliente} disabled={isSubmitting}>
+              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin"/> : 'Confirmar Remoção'}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
