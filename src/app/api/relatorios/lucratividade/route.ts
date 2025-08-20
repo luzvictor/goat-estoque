@@ -1,0 +1,74 @@
+// Em: src/app/api/relatorios/lucratividade/route.ts
+
+import { prisma } from "@/lib/prisma";
+import { NextResponse } from "next/server";
+
+export async function GET(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const from = searchParams.get('from');
+    const to = searchParams.get('to');
+
+    if (!from || !to) {
+      return NextResponse.json({ error: "Parâmetros de data são obrigatórios." }, { status: 400 });
+    }
+
+    const fromDate = new Date(from);
+    const toDate = new Date(to);
+
+    if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
+      return NextResponse.json({ error: "Formato de data inválido." }, { status: 400 });
+    }
+
+    console.log(`Buscando pedidos de ${fromDate.toISOString()} até ${toDate.toISOString()}`);
+
+    // --- LÓGICA DA QUERY CORRIGIDA ---
+    // 1. Buscamos diretamente na tabela 'Pedido' filtrando pela data
+    const pedidosNoPeriodo = await prisma.pedido.findMany({
+      where: {
+        data: {
+          gte: fromDate,
+          lte: toDate,
+        }
+      },
+      // 2. Incluímos os dados relacionados que precisamos para os cálculos
+      include: {
+        produtos: {
+          include: {
+            variante: true // Inclui os dados da variante (valorCusto, valorVenda)
+          }
+        }
+      }
+    });
+    
+    console.log(`Encontrados ${pedidosNoPeriodo.length} pedidos no período.`);
+
+    let faturamentoTotal = 0;
+    let custoTotal = 0;
+
+    // 3. Iteramos sobre os pedidos encontrados para fazer os cálculos
+    for (const pedido of pedidosNoPeriodo) {
+      for (const item of pedido.produtos) {
+        // Verifica se a variante e os valores existem para evitar erros
+        if (item.variante) {
+          faturamentoTotal += item.quantidade * item.variante.valorVenda;
+          custoTotal += item.quantidade * item.variante.valorCusto;
+        }
+      }
+    }
+
+    const lucroTotal = faturamentoTotal - custoTotal;
+    const margemDeLucro = faturamentoTotal > 0 ? (lucroTotal / faturamentoTotal) * 100 : 0;
+    
+    return NextResponse.json({
+      faturamentoTotal,
+      custoTotal,
+      lucroTotal,
+      margemDeLucro,
+    });
+
+  } catch (error) {
+    console.error("Erro ao gerar relatório de lucratividade:", error);
+    return NextResponse.json({ error: "Erro ao gerar relatório." }, { status: 500 });
+  }
+}

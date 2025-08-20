@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 // --- CORREÇÃO: Importando as tipagens centralizadas ---
 import { Cliente, Pedido, ProdutoBase, VarianteProduto, NewOrderItem } from "@/types";
 import { toast } from "sonner";
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 
 const STATUS_OPTIONS = ["Pendente", "Enviado", "Concluído", "Cancelado"];
 
@@ -37,6 +38,10 @@ export default function PedidosPageClient() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
   
   // Estados para o formulário de novo pedido
   const [newOrderItems, setNewOrderItems] = useState<NewOrderItem[]>([]);
@@ -45,7 +50,8 @@ export default function PedidosPageClient() {
   
   // Estados para modais de confirmação e detalhes
   const [isAlertOpen, setIsAlertOpen] = useState(false);
-  const [orderToDelete, setOrderToDelete] = useState<string | null>(null);
+  // CORREÇÃO: O estado agora guarda o objeto Pedido completo
+  const [orderToDelete, setOrderToDelete] = useState<Pedido | null>(null);
   const [viewingOrderId, setViewingOrderId] = useState<string | null>(null);
 
   // --- Estados para gestão de clientes ---
@@ -104,30 +110,57 @@ export default function PedidosPageClient() {
     return () => clearTimeout(timerId);
   }, [clienteSearch]);
 
-  const fetchInitialData = useCallback(async (mes: number, ano: number) => {
+  const fetchInitialData = useCallback(async (page = 1) => {
     setIsLoading(true);
     try {
-      // Adiciona os parâmetros na URL da API de pedidos
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: '15',
+        mes: String(selectedMonth),
+        ano: String(selectedYear),
+      });
+
+      // A API de produtos também será chamada sem paginação por enquanto,
+      // pois ela popula os dropdowns do formulário.
       const [pedidosRes, produtosRes] = await Promise.all([
-        fetch(`/api/pedidos?mes=${mes}&ano=${ano}`),
-        fetch('/api/produtos')
+        fetch(`/api/pedidos?${params.toString()}`),
+        fetch('/api/produtos') 
       ]);
-      if (!pedidosRes.ok || !produtosRes.ok) throw new Error("Falha ao buscar dados");
+
+      if (!pedidosRes.ok || !produtosRes.ok) throw new Error("Falha ao buscar dados do servidor.");
       
-      const pedidosData = await pedidosRes.json();
-      const produtosData = await produtosRes.json();
+      const pedidosResponse = await pedidosRes.json();
+      const produtosResponse = await produtosRes.json(); // A resposta da API de produtos
       
-      setPedidos(pedidosData);
-      setProdutosBase(produtosData);
-    } catch (error) {
-      console.error("Erro ao buscar dados:", error);
-      setPedidos([]); // Limpa os pedidos em caso de erro para não mostrar dados antigos
-    } finally { setIsLoading(false); }
-  }, []);
+      setPedidos(pedidosResponse.data);
+      // CORREÇÃO AQUI: Pegamos apenas a propriedade 'data' da resposta dos produtos
+      setProdutosBase(produtosResponse.data); 
+      
+      // Atualiza a paginação dos PEDIDOS
+      setCurrentPage(pedidosResponse.pagination.currentPage);
+      setTotalPages(pedidosResponse.pagination.totalPages);
+      setTotalItems(pedidosResponse.pagination.totalItems);
+
+    } catch (error: any) {
+      toast.error("Erro ao carregar dados", { description: error.message });
+      setPedidos([]); // Limpa os dados em caso de erro
+    } finally {
+      setIsLoading(false);
+    }
+}, [selectedMonth, selectedYear]);
 
   useEffect(() => {
-    fetchInitialData(selectedMonth, selectedYear);
-  }, [selectedMonth, selectedYear, fetchInitialData]);
+    fetchInitialData(currentPage);
+  }, [currentPage, fetchInitialData]);
+
+  useEffect(() => {
+    if (currentPage !== 1) {
+      setCurrentPage(1);
+    } else {
+      // Se já estiver na página 1, força a busca com os novos filtros
+      fetchInitialData(1);
+    }
+  }, [selectedMonth, selectedYear]);
   
   async function handleUpdateStatus(pedidoId: string, newStatus: string) {
     const originalPedidos = [...pedidos];
@@ -146,25 +179,26 @@ export default function PedidosPageClient() {
   }
 
   const openDeleteAlert = (pedido: Pedido) => {
-    setOrderToDelete(pedido.id);
+    setOrderToDelete(pedido);
     setIsAlertOpen(true);
   };
   
   async function handleDeleteOrder() {
     if (!orderToDelete) return;
     setIsSubmitting(true);
-    const originalPedidos = [...pedidos];
-    setPedidos(current => current.filter(p => p.id !== orderToDelete));
     try {
-      const response = await fetch(`/api/pedidos/${orderToDelete}`, { method: 'DELETE' });
+      // CORREÇÃO: Acessa o ID a partir do objeto guardado no estado
+      const response = await fetch(`/api/pedidos/${orderToDelete.id}`, { method: 'DELETE' });
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Falha ao remover pedido');
       }
       toast.success("Pedido removido com sucesso!");
+      const newPage = pedidos.length === 1 && currentPage > 1 ? currentPage - 1 : currentPage;
+      await fetchInitialData(newPage);
     } catch (error: any) {
       toast.error("Falha ao remover pedido", { description: error.message });
-      setPedidos(originalPedidos);
+      // A re-busca em caso de sucesso já atualiza a lista, não precisa reverter aqui.
     } finally {
       setOrderToDelete(null);
       setIsAlertOpen(false);
@@ -236,11 +270,13 @@ export default function PedidosPageClient() {
     try {
       const response = await fetch('/api/pedidos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "Não foi possível criar o pedido.");
-      
-      toast.success("Pedido criado com sucesso!");
-      setCreateModalOpen(false);
-      await fetchInitialData(selectedMonth, selectedYear);
+      if (!response.ok) throw new Error(result.error || "Não foi possível criar o pedido.");     
+      if (response.ok) {
+        toast.success("Pedido criado com sucesso!");
+        setCreateModalOpen(false);
+        // Após criar, busca os dados da página 1 do mês/ano selecionado
+        await fetchInitialData(1); 
+      }
     } catch (error: any) {
       toast.error("Erro ao criar pedido", { description: error.message });
     } finally {
@@ -524,9 +560,8 @@ export default function PedidosPageClient() {
                                   <Button variant="ghost" size="sm" className="w-full justify-start" onClick={() => setViewingOrderId(pedido.id)}>
                                     Visualizar
                                   </Button>
-                                  <Button variant="ghost" size="sm" className="w-full justify-start text-red-500 hover:text-red-500 hover:bg-red-50"
-                                    onClick={() => { setOrderToDelete(pedido.id); setIsAlertOpen(true); }}>
-                                    Remover Pedido
+                                  <Button variant="ghost" size="sm" className="w-full justify-start text-destructive hover:text-destructive" onClick={() => openDeleteAlert(pedido)}>
+                                    <Trash2 className="h-4 w-4"/>Remover
                                   </Button>
                                </div>
                             </PopoverContent>
@@ -540,6 +575,35 @@ export default function PedidosPageClient() {
             </TableBody>
           </Table>
         </CardContent>
+        <CardFooter className="flex justify-between items-center">
+          <div className="text-xs text-muted-foreground">
+            Página <strong>{currentPage}</strong> de <strong>{totalPages}</strong> ({totalItems} pedidos no total).
+          </div>
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious 
+                  href="#" 
+                  onClick={(e) => { e.preventDefault(); setCurrentPage(p => Math.max(1, p - 1)); }}
+                  className={cn(currentPage === 1 && 'pointer-events-none opacity-50')}
+                />
+              </PaginationItem>
+              
+              {/* Lógica de renderização de links de página pode ser adicionada aqui */}
+              <PaginationItem>
+                <PaginationLink isActive>{currentPage}</PaginationLink>
+              </PaginationItem>
+
+              <PaginationItem>
+                <PaginationNext
+                  href="#"
+                  onClick={(e) => { e.preventDefault(); setCurrentPage(p => Math.min(totalPages, p + 1)); }}
+                  className={cn(currentPage === totalPages && 'pointer-events-none opacity-50')}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </CardFooter>
       </Card>
       
       <Dialog open={isNewClienteModalOpen} onOpenChange={setIsNewClienteModalOpen}>

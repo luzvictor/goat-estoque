@@ -40,6 +40,7 @@
   import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
+import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 
   // Funções de formatação e parse de moeda
   const formatCurrency = (value: string | number): string => {
@@ -79,6 +80,10 @@ import { toast } from "sonner";
     const [searchTerm, setSearchTerm] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalItems, setTotalItems] = useState(0);
     
     // Estados dos modais
     const [isCreateModalOpen, setCreateModalOpen] = useState(false);
@@ -103,21 +108,45 @@ import { toast } from "sonner";
     };
     
     // --- FUNÇÕES DE API E AÇÕES DO USUÁRIO ---
-    const fetchProdutos = useCallback(async () => {
+    const fetchProdutos = useCallback(async (page = 1) => {
     setIsLoading(true);
     try {
-      const res = await fetch("/api/produtos"); 
-      if (!res.ok) throw new Error("Falha ao buscar produtos do servidor.");
-      const data: ProdutoBase[] = await res.json();
+      // Constrói a URL com os parâmetros de paginação e busca
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: '10', // Mostra 10 itens por página
+        search: searchTerm,
+      });
+      
+      const res = await fetch(`/api/produtos?${params.toString()}`);
+      if (!res.ok) throw new Error("Falha ao buscar produtos");
+      
+      const { data, pagination } = await res.json();
+      
       setProdutosBase(data);
+      setCurrentPage(pagination.currentPage);
+      setTotalPages(pagination.totalPages);
+      setTotalItems(pagination.totalItems);
     } catch(error: any) {
       toast.error("Erro de Rede", { description: error.message });
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [searchTerm]);
 
-  useEffect(() => { fetchProdutos(); }, [fetchProdutos]);
+  useEffect(() => {
+    fetchProdutos(currentPage);
+  }, [currentPage, fetchProdutos]);
+
+  useEffect(() => {
+    const timerId = setTimeout(() => {
+      // Reseta para a primeira página ao fazer uma nova busca
+      setCurrentPage(1); 
+      fetchProdutos(1);
+    }, 500);
+    return () => clearTimeout(timerId);
+  }, [searchTerm, fetchProdutos]);
+
   useEffect(() => { if (editingItem) setEditModalOpen(true); }, [editingItem]);
   useEffect(() => { if (!isCreateModalOpen && !isEditModalOpen && !isEntryModalOpen) { resetForms(); } }, [isCreateModalOpen, isEditModalOpen, isEntryModalOpen]);
   
@@ -154,23 +183,14 @@ import { toast } from "sonner";
       return;
     }
     setIsSubmitting(true);
-    const requestBody = {
-      ...formBase,
-      variantes: [{
-        ...formVariante,
-        valorCusto: parseCurrency(formVariante.valorCusto),
-        valorVenda: parseCurrency(formVariante.valorVenda),
-        quantidade: Number(formVariante.quantidade),
-        estoqueMin: Number(formVariante.estoqueMin),
-      }]
-    };
+    const requestBody = { /* ... */ };
     try {
       const response = await fetch("/api/produtos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(requestBody) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Não foi possível criar o produto.");
       
       setCreateModalOpen(false);
-      await fetchProdutos();
+      await fetchProdutos(1); // Recarrega na primeira página
       toast.success("Produto criado com sucesso!");
     } catch(error: any) {
       toast.error("Erro ao criar produto", { description: error.message });
@@ -194,7 +214,8 @@ import { toast } from "sonner";
         throw new Error(errorData.error || 'Não foi possível excluir a variante.');
       }
       toast.success("Variante excluída com sucesso!");
-      await fetchProdutos();
+      const newPage = displayProdutos.length === 1 && currentPage > 1 ? currentPage - 1 : currentPage;
+      await fetchProdutos(newPage);
     } catch(error: any) {
       toast.error("Erro ao excluir", { description: error.message });
     } finally {
@@ -427,11 +448,47 @@ import { toast } from "sonner";
               </TableBody>
             </Table>
           </CardContent>
-          <CardFooter>
-            <div className="text-xs text-muted-foreground">
-              Mostrando <strong>{displayProdutos.length}</strong> {displayProdutos.length === 1 ? 'variante' : 'variantes'}.
-            </div>
-          </CardFooter>
+          <CardFooter className="flex justify-between items-center">
+          <div className="text-xs text-muted-foreground">
+            Mostrando <strong>{displayProdutos.length}</strong> de <strong>{totalItems}</strong> produtos.
+          </div>
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious 
+                  href="#" 
+                  onClick={(e) => { e.preventDefault(); setCurrentPage(p => Math.max(1, p - 1)); }}
+                  className={currentPage === 1 ? 'pointer-events-none opacity-50' : ''}
+                />
+              </PaginationItem>
+              <PaginationItem>
+                <PaginationLink isActive>{currentPage}</PaginationLink>
+              </PaginationItem>
+              {totalPages > currentPage && 
+                <PaginationItem>
+                  <PaginationLink href="#" onClick={(e) => { e.preventDefault(); setCurrentPage(currentPage + 1); }}>
+                    {currentPage + 1}
+                  </PaginationLink>
+                </PaginationItem>
+              }
+              {totalPages > currentPage + 2 && <PaginationItem><PaginationEllipsis /></PaginationItem>}
+              {totalPages > currentPage + 1 &&
+                 <PaginationItem>
+                    <PaginationLink href="#" onClick={(e) => { e.preventDefault(); setCurrentPage(totalPages); }}>
+                      {totalPages}
+                    </PaginationLink>
+                 </PaginationItem>
+              }
+              <PaginationItem>
+                <PaginationNext
+                  href="#"
+                  onClick={(e) => { e.preventDefault(); setCurrentPage(p => Math.min(totalPages, p + 1)); }}
+                  className={currentPage === totalPages ? 'pointer-events-none opacity-50' : ''}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </CardFooter>
         </Card>
         
         <Dialog open={isEditModalOpen} onOpenChange={(isOpen) => {

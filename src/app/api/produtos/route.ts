@@ -1,34 +1,72 @@
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 // Importe o enum se for usá-lo diretamente, embora o Prisma Client já o entenda
 // import { StatusPedido } from '@prisma/client'; // O Prisma Client exporta os enums
 
 // GET: Listar todos os Produtos Base com suas Variantes
 // (Este endpoint agora retorna os produtos base e aninha suas variantes)
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const produtosBase = await prisma.produtoBase.findMany({
-      include: {
-        variantes: { // Inclui todas as variantes de cada produto base
-          orderBy: { // Opcional: ordena as variantes, por exemplo, por cor
-            cor: 'asc',
-          }
+    const { searchParams } = new URL(request.url);
+    // 1. Lendo os novos parâmetros da URL
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '10');
+    const searchTerm = searchParams.get('search') || '';
+
+    // Calcula o 'skip' (quantos itens pular)
+    const skip = (page - 1) * limit;
+
+    // Constrói a cláusula de busca (igual à que tínhamos)
+    const whereClause: Prisma.ProdutoBaseWhereInput = searchTerm
+      ? {
+          OR: [
+            { nome: { contains: searchTerm, mode: 'insensitive' } },
+            { marca: { contains: searchTerm, mode: 'insensitive' } },
+            { categoria: { contains: searchTerm, mode: 'insensitive' } },
+          ],
         }
-      },
-      orderBy: { // Opcional: ordena os produtos base, por exemplo, por nome
-        nome: 'asc'
+      : {};
+
+    // 2. Executa duas queries em paralelo: uma para os dados, outra para a contagem total
+    const [produtos, total] = await prisma.$transaction([
+      prisma.produtoBase.findMany({
+        where: whereClause,
+        include: {
+          variantes: {
+            orderBy: { cor: 'asc' },
+          },
+        },
+        orderBy: { nome: 'asc' },
+        skip: skip, // Pula os itens das páginas anteriores
+        take: limit, // Pega apenas o número de itens para esta página
+      }),
+      prisma.produtoBase.count({
+        where: whereClause,
+      }),
+    ]);
+
+    const totalPages = Math.ceil(total / limit);
+
+    // 3. Retorna os dados da página E a informação de paginação
+    return NextResponse.json({
+      data: produtos,
+      pagination: {
+        totalItems: total,
+        totalPages,
+        currentPage: page,
+        pageSize: limit,
       }
     });
-    return NextResponse.json(produtosBase);
+    
   } catch (error) {
-    console.error("Erro ao buscar produtos base:", error);
+    console.error("Erro ao buscar produtos:", error);
     return NextResponse.json(
-      { error: "Erro ao buscar produtos base" },
+      { error: "Erro ao buscar produtos." },
       { status: 500 }
     );
   }
 }
-
 // POST: Criar um novo Produto Base com suas Variantes
 // (Este endpoint agora espera dados para o ProdutoBase e um array de suas variantes)
 export async function POST(request: Request) {
