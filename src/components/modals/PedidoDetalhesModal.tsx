@@ -164,7 +164,7 @@ export function PedidoDetalhesModal({ pedidoId, onClose, onStatusChange }: Pedid
                                 <TableRow key={item.id}>
                                     <TableCell>
                                         <div className="font-medium">{item.variante.produtoBase.marca} - {item.variante.produtoBase.nome}</div>
-                                        <div className="text-xs text-muted-foreground">{item.variante.cor}, {item.variante.tamanho || 'Único'}</div>
+                                        <div className="text-xs text-muted-foreground">{item.variante.cor.nome}, {item.variante.tamanho?.nome || 'Único'}</div>
                                     </TableCell>
                                     <TableCell>{item.quantidade}</TableCell>
                                     <TableCell>{formatCurrency(item.variante.valorVenda)}</TableCell>

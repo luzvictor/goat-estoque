@@ -89,7 +89,7 @@ export async function GET(
     const pedido = await prisma.pedido.findUnique({
       where: { id: id },
       include: {
-        // CORREÇÃO: Trocamos Usuario por Cliente e selecionamos os campos desejados
+        // Inclui os dados do cliente associado
         Cliente: { 
           select: { 
             nome: true,
@@ -98,11 +98,16 @@ export async function GET(
             endereco: true
           } 
         },
+        // Inclui os itens do pedido
         produtos: {
           include: {
+            // Para cada item, inclui os dados da variante
             variante: {
               include: {
+                // E para cada variante, inclui os objetos completos
                 produtoBase: true,
+                cor: true,
+                tamanho: true,
               },
             },
           },
@@ -120,6 +125,7 @@ export async function GET(
     return NextResponse.json({ error: "Erro ao buscar pedido." }, { status: 500 });
   }
 }
+
 
 /**
  * DELETE: Cancela/deleta um pedido e reverte o estoque dos produtos vendidos.

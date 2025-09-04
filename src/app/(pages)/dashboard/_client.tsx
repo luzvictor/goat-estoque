@@ -17,12 +17,21 @@ type KpiData = {
   ticketMedio: { valor: number };
 };
 type AlertData = {
-  estoqueBaixo: { id_variante: string; cor: string; tamanho: string | null; quantidade: number; produtoBase: { nome: string; marca: string } }[];
+  estoqueBaixo: {
+    id_variante: string;
+    cor: { id: string; nome: string } | null;
+    tamanho: { id: string; nome: string } | null;
+    quantidade: number;
+    produtoBase: { nome: string; marca: { id: string; nome: string } | null };
+  }[];
   pedidosPendentes: { id: string; data: string; Cliente: { nome: string } | null }[];
 };
+
 // NOVO: Tipagens para os dados dos gráficos
 type SalesData = { name: string; Vendas: number };
 type CategoryData = { name: string; value: number };
+
+type RawCategory = { name: string | { nome: string }; value: number };
 
 
 const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff8042', '#00C49F', '#FFBB28'];
@@ -127,6 +136,11 @@ export default function DashboardClient() {
     border: '#000000',
   });
 
+  const mappedCategoryData: CategoryData[] = categoryData.map((c: RawCategory) => ({
+  name: typeof c.name === 'object' ? c.name.nome : c.name,
+  value: c.value
+}));
+
   useEffect(() => {
     // Esta função só roda no cliente (depois que o CSS é carregado)
     const style = getComputedStyle(document.body);
@@ -184,18 +198,34 @@ export default function DashboardClient() {
         <Card className="col-span-4 lg:col-span-3">
             <CardHeader><CardTitle>Vendas por Categoria</CardTitle><CardDescription>Distribuição de faturamento por categoria.</CardDescription></CardHeader>
             <CardContent>
-                 <ResponsiveContainer width="100%" height={350}>
-                    {/* ATUALIZADO: Usa os dados do estado 'categoryData' */}
-                    <PieChart>
-                        <Pie data={categoryData} cx="50%" cy="50%" labelLine={false} outerRadius={120} fill="#8884d8" dataKey="value" nameKey="name" label={(props) => props.name}>
-                            {categoryData.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                            ))}
-                        </Pie>
-                        <Tooltip contentStyle={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))', borderRadius: '0.5rem' }} formatter={(value: number) => formatCurrency(value)}/>
-                        <Legend/>
-                    </PieChart>
-                 </ResponsiveContainer>
+            <ResponsiveContainer width="100%" height={350}>
+                <PieChart>
+                    <Pie
+                        data={mappedCategoryData}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        outerRadius={120}
+                        fill="#8884d8"
+                        dataKey="value"
+                        nameKey="name"
+                        label={(entry) => entry.name} // agora é string
+                    >
+                        {mappedCategoryData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                    </Pie>
+                    <Tooltip
+                        contentStyle={{
+                            background: 'hsl(var(--background))',
+                            border: '1px solid hsl(var(--border))',
+                            borderRadius: '0.5rem'
+                        }}
+                        formatter={(value: number) => formatCurrency(value)}
+                    />
+                    <Legend />
+                </PieChart>
+            </ResponsiveContainer>
             </CardContent>
         </Card>
       </div>
@@ -216,8 +246,8 @@ export default function DashboardClient() {
                 {alerts?.estoqueBaixo.map(item => (
                   <TableRow key={item.id_variante}>
                     <TableCell>
-                      <div className="font-medium">{item.produtoBase.marca} - {item.produtoBase.nome}</div>
-                      <div className="text-sm text-muted-foreground">{item.cor}, {item.tamanho || 'Único'}</div>
+                      <div className="font-medium">{item.produtoBase.marca?.nome} - {item.produtoBase.nome}</div>
+                      <div className="text-sm text-muted-foreground">{item.cor?.nome}, {item.tamanho?.nome || 'Único'}</div>
                     </TableCell>
                     <TableCell className="text-right font-bold text-destructive">{item.quantidade}</TableCell>
                   </TableRow>

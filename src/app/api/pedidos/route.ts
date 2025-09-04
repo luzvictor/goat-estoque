@@ -41,7 +41,22 @@ export async function GET(request: Request) {
         where: whereClause,
         include: {
           Cliente: { select: { nome: true } },
-          produtos: { include: { variante: { include: { produtoBase: true } } } },
+          produtos: {
+            include: {
+              variante: {
+                include: {
+                  produtoBase: {
+                    include: {
+                      marca: true,
+                      categoria: true,
+                    },
+                  },
+                  cor: true,
+                  tamanho: true,
+                },
+              },
+            },
+          },
         },
         orderBy: { data: 'desc' },
         skip: skip,

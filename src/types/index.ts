@@ -9,9 +9,10 @@ export type Cliente = {
 };
 
 export type VarianteProduto = {
+  sku: string;
   id_variante: string;
-  cor: string;
-  tamanho: string | null;
+  cor: { nome: string };
+  tamanho?: { nome: string };
   valorVenda: number;
   quantidade: number;
   produtoBase: {
@@ -24,7 +25,7 @@ export type ProdutoBase = {
   id_produto_base: string;
   nome: string;
   categoria: string;
-  marca: string;
+  marca: { nome: string };
   variantes: VarianteProduto[];
 };
 
@@ -38,9 +39,7 @@ export type Pedido = {
     variante: VarianteProduto;
   }[];
   // A relação correta com Cliente
-  Cliente: {
-    nome: string;
-  } | null;
+  Cliente: Cliente | null;
 };
 
 export type NewOrderItem = {

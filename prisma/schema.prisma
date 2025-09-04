@@ -19,8 +19,12 @@ enum StatusPedido {
 model ProdutoBase {
   id_produto_base String @id @default(cuid())
   nome            String
-  categoria       String
-  marca           String
+
+  categoriaId     String
+  categoria       Categoria @relation(fields: [categoriaId], references: [id])
+
+  marcaId         String
+  marca           Marca     @relation(fields: [marcaId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -31,9 +35,13 @@ model ProdutoBase {
 model VarianteProduto {
   id_variante String @id @default(cuid())
 
+  corId           String
+  cor             Cor       @relation(fields: [corId], references: [id])
+
+  tamanhoId       String?   // Opcional, como antes
+  tamanho         Tamanho?  @relation(fields: [tamanhoId], references: [id])
+
   // Campos específicos da variante
-  cor        String
-  tamanho    String? // Pode ser opcional
   valorCusto Float
   valorVenda Float
   estoqueMin Int
@@ -53,8 +61,37 @@ model VarianteProduto {
   updatedAt DateTime @updatedAt
 
   // Garante que cor/tamanho sejam únicos para um mesmo produto base
-  @@unique([produtoBaseId, cor, tamanho])
+  @@unique([produtoBaseId, corId, tamanhoId])
 }
+
+model Categoria {
+  id    String @id @default(cuid())
+  nome  String @unique // O @unique impede nomes duplicados como "Adidas" e "Addias"
+
+  produtos ProdutoBase[] // Relação inversa
+}
+
+model Marca {
+  id    String @id @default(cuid())
+  nome  String @unique
+
+  produtos ProdutoBase[] // Relação inversa
+}
+
+model Cor {
+  id    String @id @default(cuid())
+  nome  String @unique // Ex: "Azul Marinho", "Preto", "Branco"
+
+  variantes VarianteProduto[] // Relação inversa
+}
+
+model Tamanho {
+  id    String @id @default(cuid())
+  nome  String @unique // Ex: "P", "M", "G", "38", "40"
+
+  variantes VarianteProduto[] // Relação inversa
+}
+
 
 model EntradaEstoque {
   id_entrada String   @id @default(cuid())

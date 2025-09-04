@@ -1,10 +1,10 @@
 // Em: src/app/api/dashboard/kpis/route.ts
-
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { subDays, differenceInDays } from 'date-fns';
+import { NextRequest } from "next/server";
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const from = searchParams.get('from');
@@ -17,35 +17,51 @@ export async function GET(request: Request) {
     const fromDate = new Date(from);
     const toDate = new Date(to);
 
-    // Período Selecionado
-    const pedidosPeriodoAtual = await prisma.pedido.findMany({
-      where: { data: { gte: fromDate, lte: toDate } },
-      include: { produtos: { include: { variante: true } } },
-    });
-    
-    const faturamentoAtual = pedidosPeriodoAtual.reduce((total, pedido) => 
-      total + pedido.produtos.reduce((subtotal, item) => 
-        subtotal + (item.quantidade * item.variante.valorVenda), 0), 0);
-    
-    const totalPedidosAtual = pedidosPeriodoAtual.length;
+    // --- CÁLCULO DO PERÍODO ATUAL USANDO QUERY SQL RAW OTIMIZADA ---
+    const resultadoPeriodoAtual: { total: bigint }[] = await prisma.$queryRaw`
+      SELECT 
+          SUM("t_pedido_produto"."quantidade" * "t_variante"."valorVenda") as total
+      FROM
+          "Pedido" AS t_pedido
+      JOIN
+          "PedidoProduto" AS t_pedido_produto ON t_pedido.id = t_pedido_produto."pedidoId"
+      JOIN
+          "VarianteProduto" AS t_variante ON t_pedido_produto."varianteId" = t_variante."id_variante"
+      WHERE
+          t_pedido.data >= ${fromDate} AND t_pedido.data <= ${toDate};
+    `;
 
-    // Período Anterior (com a mesma duração do período selecionado)
+    // O Prisma retorna um valor de soma como `bigint`, então convertemos para um número.
+    const faturamentoAtual = Number(resultadoPeriodoAtual[0]?.total) || 0;
+
+    // --- CÁLCULO DO PERÍODO ANTERIOR USANDO QUERY SQL RAW OTIMIZADA ---
     const duracaoPeriodo = differenceInDays(toDate, fromDate);
     const inicioPeriodoAnterior = subDays(fromDate, duracaoPeriodo + 1);
     const fimPeriodoAnterior = subDays(toDate, duracaoPeriodo + 1);
 
-    const pedidosPeriodoAnterior = await prisma.pedido.findMany({
-      where: { data: { gte: inicioPeriodoAnterior, lte: fimPeriodoAnterior } },
-      include: { produtos: { include: { variante: true } } },
+    const resultadoPeriodoAnterior: { total: bigint }[] = await prisma.$queryRaw`
+      SELECT 
+          SUM("t_pedido_produto"."quantidade" * "t_variante"."valorVenda") as total
+      FROM
+          "Pedido" AS t_pedido
+      JOIN
+          "PedidoProduto" AS t_pedido_produto ON t_pedido.id = t_pedido_produto."pedidoId"
+      JOIN
+          "VarianteProduto" AS t_variante ON t_pedido_produto."varianteId" = t_variante."id_variante"
+      WHERE
+          t_pedido.data >= ${inicioPeriodoAnterior} AND t_pedido.data <= ${fimPeriodoAnterior};
+    `;
+    
+    const faturamentoAnterior = Number(resultadoPeriodoAnterior[0]?.total) || 0;
+    
+    // --- CÁLCULO DO TOTAL DE PEDIDOS ATUAL (Ainda pode ser feito com findMany, pois é mais simples) ---
+    const totalPedidosAtual = await prisma.pedido.count({
+      where: { data: { gte: fromDate, lte: toDate } }
     });
 
-    const faturamentoAnterior = pedidosPeriodoAnterior.reduce((total, pedido) => 
-      total + pedido.produtos.reduce((subtotal, item) => 
-        subtotal + (item.quantidade * item.variante.valorVenda), 0), 0);
-
     const calcularVariacao = (atual: number, anterior: number) => {
-        if (anterior === 0) return atual > 0 ? 100 : 0;
-        return ((atual - anterior) / anterior) * 100;
+      if (anterior === 0) return atual > 0 ? 100 : 0;
+      return ((atual - anterior) / anterior) * 100;
     };
     
     const variacaoFaturamento = calcularVariacao(faturamentoAtual, faturamentoAnterior);

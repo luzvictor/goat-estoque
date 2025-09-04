@@ -75,6 +75,7 @@ export default function PedidosPageClient() {
         nome: base.nome,
         categoria: base.categoria,
         marca: base.marca,
+        sku: variante.sku ?? "",
       }))
     );
   }, [produtosBase]);
@@ -84,7 +85,7 @@ export default function PedidosPageClient() {
     const searchLower = productSearch.toLowerCase();
     return produtosDisponiveis.filter(p =>
       p.nome.toLowerCase().includes(searchLower) ||
-      p.marca.toLowerCase().includes(searchLower) ||
+      p.marca.nome.toLowerCase().includes(searchLower) ||
       p.sku?.toLowerCase().includes(searchLower)
     );
   }, [productSearch, produtosDisponiveis]);
@@ -243,7 +244,7 @@ export default function PedidosPageClient() {
       }
       return [...prev, {
         varianteId: produto.id_variante,
-        nome: `${produto.marca} - ${produto.nome} (${produto.cor}, ${produto.tamanho || "Único"})`,
+        nome: `${produto.marca.nome} - ${produto.nome} (${produto.cor.nome}, ${produto.tamanho?.nome || "Único"})`,
         quantidade: itemQuantity,
         estoqueDisponivel: produto.quantidade,
         precoUnitario: produto.valorVenda,
@@ -324,10 +325,17 @@ export default function PedidosPageClient() {
   const formatCurrency = (value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   const selectedProductName = useMemo(() => {
-    if (!selectedVariant) return "";
-    const produto = produtosDisponiveis.find(p => p.id_variante === selectedVariant);
-    return produto ? `${produto.marca} - ${produto.nome} (${produto.cor}, ${produto.tamanho || 'Único'})` : "";
-  }, [selectedVariant, produtosDisponiveis]);
+  if (!selectedVariant) return "";
+  const produto = produtosDisponiveis.find(p => p.id_variante === selectedVariant);
+  if (!produto) return "";
+
+  // Aqui acessamos a propriedade 'nome' de cada objeto
+  const marcaNome = produto.marca?.nome ?? "";
+  const corNome = produto.cor?.nome ?? "";
+  const tamanhoNome = produto.tamanho?.nome ?? "Único";
+
+  return `${marcaNome} - ${produto.nome} (${corNome}, ${tamanhoNome})`;
+}, [selectedVariant, produtosDisponiveis]);
 
   // --- Renderização do Componente ---
   return (
@@ -448,9 +456,9 @@ export default function PedidosPageClient() {
                                                         setProductSearch(""); // Limpa a busca
                                                     }}
                                                 >
-                                                    <p className="text-sm font-medium">{produto.marca} - {produto.nome}</p>
+                                                    <p className="text-sm font-medium">{produto.marca.nome} - {produto.nome}</p>
                                                     <p className="text-xs text-muted-foreground">
-                                                        {produto.cor}, {produto.tamanho || 'Único'} - Estoque: {produto.quantidade}
+                                                        {produto.cor.nome}, {produto.tamanho?.nome || 'Único'} - Estoque: {produto.quantidade}
                                                     </p>
                                                 </div>
                                             ))

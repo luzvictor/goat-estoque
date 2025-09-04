@@ -2,15 +2,15 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
-import { Loader2, PlusCircle, Trash2, MoreHorizontal, Edit } from "lucide-react";
+import { Loader2, PlusCircle, Trash2, MoreHorizontal, Edit, Eye } from "lucide-react"; // 1. Importado o ícone Eye
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Cliente } from "@/types"; // Assumindo que você usa o types/index.ts
+import { Cliente } from "@/types";
 import { toast } from "sonner";
 
 export default function ClientesPageClient() {
@@ -23,10 +23,11 @@ export default function ClientesPageClient() {
   const [editingCliente, setEditingCliente] = useState<Cliente | null>(null);
   const [clienteForm, setClienteForm] = useState({ nome: "", cpf: "", endereco: "", telefone: "" });
 
-  // --- ESTADOS PARA OS ALERT DIALOGS ---
   const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false);
   const [clienteToDelete, setClienteToDelete] = useState<Cliente | null>(null);
-  // NOVO: Estado unificado para alertas de informação/erro
+  
+  // --- 2. NOVO ESTADO PARA O MODAL DE VISUALIZAÇÃO ---
+  const [viewingCliente, setViewingCliente] = useState<Cliente | null>(null);
 
   const fetchClientes = useCallback(async () => {
     setIsLoading(true);
@@ -43,7 +44,7 @@ export default function ClientesPageClient() {
   }, [searchTerm]);
 
   useEffect(() => {
-    const timerId = setTimeout(() => fetchClientes(), 500);
+    const timerId = setTimeout(() => fetchClientes(), 300);
     return () => clearTimeout(timerId);
   }, [searchTerm, fetchClientes]);
 
@@ -62,8 +63,6 @@ export default function ClientesPageClient() {
     }
     setIsModalOpen(true);
   };
-
-  // --- LÓGICA DE AÇÕES REATORADA ---
 
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setClienteForm({ ...clienteForm, [e.target.name]: e.target.value });
@@ -90,7 +89,7 @@ export default function ClientesPageClient() {
 
       toast.success(`Cliente ${editingCliente ? 'atualizado' : 'criado'} com sucesso!`);
       setIsModalOpen(false);
-      setSearchTerm(""); // Limpa a busca para exibir a lista atualizada
+      await fetchClientes();
     } catch (error: any) {
       toast.error("Erro ao salvar", { description: error.message });
     } finally {
@@ -113,13 +112,12 @@ export default function ClientesPageClient() {
         throw new Error(errorData.error || "Falha ao remover cliente.");
       }
       toast.success("Cliente removido com sucesso!");
-      await fetchClientes(); // Re-busca a lista
+      await fetchClientes();
     } catch (error: any) {
       toast.error("Erro ao remover", { description: error.message });
     } finally {
       setIsSubmitting(false);
       setIsDeleteAlertOpen(false);
-      setClienteToDelete(null);
     }
   };
 
@@ -172,15 +170,19 @@ export default function ClientesPageClient() {
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-1">
                            <div className="flex flex-col">
-                              <Button variant="ghost" size="sm" className="w-full justify-start gap-2" onClick={() => openModal(cliente)}>
-                                <Edit className="h-4 w-4" /> Editar
-                              </Button>
-                              <Button variant="ghost" size="sm" className="w-full justify-start text-destructive hover:text-destructive" onClick={() => openDeleteAlert(cliente)}>
-                                <Trash2 className="h-4 w-4" /> Remover
-                              </Button>
+                            {/* --- 3. NOVO BOTÃO DE VISUALIZAR --- */}
+                            <Button variant="ghost" size="sm" className="w-full justify-start gap-2" onClick={() => setViewingCliente(cliente)}>
+                              <Eye className="h-4 w-4" /> Visualizar
+                            </Button>
+                            <Button variant="ghost" size="sm" className="w-full justify-start gap-2" onClick={() => openModal(cliente)}>
+                              <Edit className="h-4 w-4" /> Editar
+                            </Button>
+                            <Button variant="ghost" size="sm" className="w-full justify-start text-destructive hover:text-destructive" onClick={() => openDeleteAlert(cliente)}>
+                              <Trash2 className="h-4 w-4" /> Remover
+                            </Button>
                            </div>
                         </PopoverContent>
-                      </Popover>
+                       </Popover>
                     </TableCell>
                   </TableRow>
                 ))
@@ -192,6 +194,7 @@ export default function ClientesPageClient() {
         </CardContent>
       </Card>
 
+      {/* Modal de Criar/Editar */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent>
           <DialogHeader>
@@ -224,30 +227,33 @@ export default function ClientesPageClient() {
         </DialogContent>
       </Dialog>
       
-      <AlertDialog open={isDeleteAlertOpen} onOpenChange={setIsDeleteAlertOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta ação não pode ser desfeita. O cliente "{clienteToDelete?.nome}" será removido. Os pedidos associados a ele não serão apagados, mas perderão o vínculo com este cliente.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setClienteToDelete(null)}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteCliente} disabled={isSubmitting}>
-              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin"/> : 'Confirmar Remoção'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* --- 4. NOVO MODAL DE VISUALIZAÇÃO --- */}
+      <Dialog open={!!viewingCliente} onOpenChange={(isOpen) => !isOpen && setViewingCliente(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Detalhes do Cliente</DialogTitle>
+            <DialogDescription>Informações completas do cliente selecionado.</DialogDescription>
+          </DialogHeader>
+          {viewingCliente && (
+            <div className="space-y-2 py-4">
+              <p><strong>Nome:</strong> {viewingCliente.nome}</p>
+              <p><strong>CPF:</strong> {viewingCliente.cpf || 'Não informado'}</p>
+              <p><strong>Telefone:</strong> {viewingCliente.telefone || 'Não informado'}</p>
+              <p><strong>Endereço:</strong> {viewingCliente.endereco || 'Não informado'}</p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewingCliente(null)}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-      {/* NOVO: AlertDialog para exibir informações e erros */}
       <AlertDialog open={isDeleteAlertOpen} onOpenChange={setIsDeleteAlertOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta ação não pode ser desfeita. O cliente "{clienteToDelete?.nome}" será removido. Os pedidos associados a ele não serão apagados, mas perderão o vínculo.
+              A ação de excluir o cliente "{clienteToDelete?.nome}" não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

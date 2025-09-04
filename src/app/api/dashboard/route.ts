@@ -2,102 +2,126 @@
 
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { NextRequest } from 'next/server';
 
-export async function GET(request: Request) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const from = searchParams.get('from');
-    const to = searchParams.get('to');
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const from = searchParams.get('from');
+    const to = searchParams.get('to');
 
-    const dateFilter = (from && to) 
-      ? { gte: new Date(from), lte: new Date(to) } 
-      : undefined;
+    // Valida o filtro de data. Se não houver, assume um período padrão.
+    const fromDate = from ? new Date(from) : undefined;
+    const toDate = to ? new Date(to) : undefined;
+    
+    // 1. Calcular Faturamento Total e Total de Vendas no Período
+    // Otimizado para somar diretamente no banco de dados.
+    const resultadoFaturamento: { total: bigint; }[] = await prisma.$queryRaw`
+      SELECT
+          SUM(t_pedido_produto.quantidade * t_variante."valorVenda") as total
+      FROM
+          "Pedido" AS t_pedido
+      JOIN
+          "PedidoProduto" AS t_pedido_produto ON t_pedido.id = t_pedido_produto."pedidoId"
+      JOIN
+          "VarianteProduto" AS t_variante ON t_pedido_produto."varianteId" = t_variante."id_variante"
+      WHERE
+          t_pedido.status = 'Concluido' AND t_pedido.data >= ${fromDate} AND t_pedido.data <= ${toDate};
+    `;
 
-    // 1. Calcular Faturamento e Vendas no Período
-    const pedidosPagos = await prisma.pedido.findMany({
-      where: {
-        status: 'PAGO',
-        data: dateFilter,
-      },
-      include: {
-        produtos: {
-          include: {
-            variante: true,
-          },
-        },
-      },
-    });
+    const faturamentoTotal = Number(resultadoFaturamento[0]?.total) || 0;
+    
+    const totalVendas = await prisma.pedido.count({
+      where: {
+        status: 'Concluido',
+        data: { gte: fromDate, lte: toDate },
+      },
+    });
 
-    const faturamentoTotal = pedidosPagos.reduce((acc, pedido) => {
-      return acc + pedido.produtos.reduce((itemAcc, item) => {
-        return itemAcc + (item.variante.valorVenda * item.quantidade);
-      }, 0);
-    }, 0);
+    // 2. Encontrar produtos com estoque baixo
+    // Corrigido para comparar as colunas 'quantidade' e 'estoqueMin'
+    const produtosEstoqueBaixo = await prisma.$queryRaw`
+      SELECT
+        t_variante.quantidade,
+        t_variante."estoqueMin",
+        t_variante."id_variante",
+        t_produto_base.nome as "nome_produto",
+        t_marca.nome as marca,
+        t_cor.nome as cor,
+        t_tamanho.nome as tamanho
+      FROM "VarianteProduto" AS t_variante
+      JOIN "ProdutoBase" AS t_produto_base ON t_variante."produtoBaseId" = t_produto_base."id_produto_base"
+      JOIN "Marca" AS t_marca ON t_produto_base."marcaId" = t_marca.id
+      JOIN "Cor" AS t_cor ON t_variante.corId = t_cor.id
+      LEFT JOIN "Tamanho" AS t_tamanho ON t_variante.tamanhoId = t_tamanho.id
+      WHERE
+        t_variante.quantidade <= t_variante."estoqueMin" AND t_variante.quantidade > 0
+      ORDER BY
+        t_variante.quantidade ASC
+      LIMIT 5;
+    `;
 
-    const totalVendas = pedidosPagos.length;
+    // 3. Obter as vendas mais recentes
+    // Adicionado filtro de data para consistência
+    const vendasRecentes = await prisma.pedido.findMany({
+        where: { status: 'Concluido', data: { gte: fromDate, lte: toDate } },
+        take: 5,
+        orderBy: { data: 'desc' },
+        include: {
+          produtos: {
+            include: {
+              variante: {
+                include: {
+                  produtoBase: {
+                    include: {
+                      marca: true,
+                    }
+                  },
+                  cor: true,
+                  tamanho: true,
+                }
+              }
+            }
+          },
+          Cliente: true
+        }
+    });
 
-    // 2. Encontrar produtos com estoque baixo
-    const produtosEstoqueBaixo = await prisma.varianteProduto.findMany({
-      where: {
-        // quantidade é menor ou igual ao estoqueMin
-        quantidade: {
-          lte: prisma.varianteProduto.fields.estoqueMin,
-        },
-        // E a quantidade é maior que 0 para não mostrar itens zerados
-        NOT: {
-          quantidade: 0,
-        }
-      },
-      include: {
-        produtoBase: true,
-      },
-      orderBy: {
-        quantidade: 'asc',
-      },
-      take: 5,
-    });
-    
-    // 3. Obter as vendas mais recentes
-    const vendasRecentes = await prisma.pedido.findMany({
-        where: { status: 'PAGO' },
-        take: 5,
-        orderBy: { data: 'desc' },
-        include: {
-            produtos: {
-                include: {
-                    variante: {
-                        include: {
-                            produtoBase: true
-                        }
-                    }
-                }
-            }
-        }
-    });
+    // 4. Dados para o gráfico de barras (Faturamento por mês no último ano)
+    const faturamentoMensal: { mes: string, total: bigint }[] = await prisma.$queryRaw`
+      SELECT 
+        TO_CHAR(DATE_TRUNC('month', t_pedido."data" AT TIME ZONE 'America/Sao_Paulo'), 'YYYY-MM') as "mes",
+        SUM(t_pedido_produto.quantidade * t_variante."valorVenda") as "total"
+      FROM
+        "Pedido" AS t_pedido
+      JOIN
+        "PedidoProduto" AS t_pedido_produto ON t_pedido.id = t_pedido_produto."pedidoId"
+      JOIN
+        "VarianteProduto" AS t_variante ON t_pedido_produto."varianteId" = t_variante."id_variante"
+      WHERE
+        t_pedido.status = 'Concluido' AND t_pedido.data >= NOW() - INTERVAL '12 months'
+      GROUP BY
+        mes
+      ORDER BY
+        mes ASC;
+    `;
+    
+    // Mapeia para converter BigInts em números
+    const faturamentoMensalFormatado = faturamentoMensal.map(item => ({
+      mes: item.mes,
+      total: Number(item.total)
+    }));
+    
+    return NextResponse.json({
+      faturamentoTotal,
+      totalVendas,
+      produtosEstoqueBaixo,
+      vendasRecentes,
+      faturamentoMensal: faturamentoMensalFormatado
+    });
 
-    // 4. Dados para o gráfico de barras (Faturamento por mês no último ano)
-    const faturamentoMensal = await prisma.$queryRaw`
-      SELECT 
-        TO_CHAR(DATE_TRUNC('month', "data"), 'YYYY-MM') as "mes",
-        SUM(p."quantidade" * v."valorVenda") as "total"
-      FROM "Pedido" o
-      JOIN "PedidoProduto" p ON o."id" = p."pedidoId"
-      JOIN "VarianteProduto" v ON p."varianteId" = v."id_variante"
-      WHERE o."status" = 'PAGO' AND o."data" > NOW() - INTERVAL '12 months'
-      GROUP BY "mes"
-      ORDER BY "mes" ASC;
-    `;
-
-    return NextResponse.json({
-      faturamentoTotal,
-      totalVendas,
-      produtosEstoqueBaixo,
-      vendasRecentes,
-      faturamentoMensal
-    });
-
-  } catch (error) {
-    console.error("Erro ao buscar dados do dashboard:", error);
-    return NextResponse.json({ error: "Erro ao buscar dados do dashboard." }, { status: 500 });
-  }
+  } catch (error) {
+    console.error("Erro ao buscar dados do dashboard:", error);
+    return NextResponse.json({ error: "Erro ao buscar dados do dashboard." }, { status: 500 });
+  }
 }

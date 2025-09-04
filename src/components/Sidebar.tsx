@@ -5,7 +5,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
-import { Home, Package, ShoppingCart, Users, LogOut, AreaChart } from 'lucide-react';
+import { Home, Package, ShoppingCart, Users, LogOut, AreaChart, Settings } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { Button } from './ui/button';
 
@@ -15,6 +15,7 @@ const navLinks = [
   { href: "/pedidos", label: "Pedidos", icon: ShoppingCart },
   { href: "/relatorios", label: "Relatorios", icon: AreaChart },
   { href: "/clientes", label: "Clientes", icon: Users },
+  { href: "/configuracoes", label: "Configurações", icon: Settings },
 ];
 
 export function Sidebar() {
