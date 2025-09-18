@@ -147,19 +147,33 @@ export default function ProdutosPageClient() {
   }, [searchTerm]);
   // Dentro do seu componente _client.tsx
 
-const handleRegisterEntry = () => {
-  try {
-    // Aqui você coloca a lógica de salvar entrada no estoque
-    console.log("Entrada registrada com sucesso!");
-    
-    // Exemplo: chamada para API
-    // await api.post("/entrada", { produtoId, quantidade });
+const handleRegisterEntry = async () => {
+  if (!entryForm.varianteId || entryForm.quantidade <= 0) {
+    toast.error("Selecione uma variante e informe uma quantidade válida.");
+    return;
+  }
 
-  } catch (error) {
-    console.error("Erro ao registrar entrada:", error);
+  setIsSubmitting(true);
+  try {
+    const response = await fetch("/api/entradas", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(entryForm),
+    });
+
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Erro ao registrar entrada.");
+
+    toast.success("Entrada registrada com sucesso!");
+    setEntryModalOpen(false); // fecha o modal
+    setEntryForm({ varianteId: "", quantidade: 0, numeroNota: "" }); // limpa formulário
+    await fetchAllData(currentPage); // atualiza tabela
+  } catch (error: any) {
+    toast.error("Erro ao registrar entrada", { description: error.message });
+  } finally {
+    setIsSubmitting(false);
   }
 };
-
 
   useEffect(() => {
     fetchAllData(currentPage);

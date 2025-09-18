@@ -6,6 +6,17 @@ import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogFooter, Dialo
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Loader2, PlusCircle, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -31,60 +42,61 @@ export function AttributeManager({ title, itemLabel, items, apiEndpoint, onUpdat
 
   // Função para criar um novo item (marca, categoria, etc.)
   async function handleCreate() {
-    if (!newItemName.trim()) {
-      toast.error(`O nome da ${itemLabel} não pode ser vazio.`);
-      return;
-    }
-    setIsSubmitting(true);
-    try {
-      const response = await fetch(apiEndpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nome: newItemName }),
-      });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || `Não foi possível criar a ${itemLabel}.`);
-      
-      toast.success(`${title.slice(0, -1)} criada com sucesso!`);
-      setIsModalOpen(false);
-      setNewItemName("");
-      onUpdate(); // Chama a função para recarregar os dados na página pai
-    } catch (error: any) {
-      toast.error(`Erro ao criar ${itemLabel}`, { description: error.message });
-    } finally {
-      setIsSubmitting(false);
-    }
+  if (!newItemName.trim()) {
+    toast.error(`O nome da ${itemLabel} não pode ser vazio.`);
+    return;
   }
+  setIsSubmitting(true);
+  try {
+    const response = await fetch(apiEndpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nome: newItemName }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || `Não foi possível criar a ${itemLabel}.`);
 
-  // Função para deletar um item
-  async function handleDelete(itemId: string, itemName: string) {
-    if (!window.confirm(`Tem certeza que deseja excluir "${itemName}"?`)) return;
+    // Aqui disparo apenas UM toast
+    toast.success(`${title.slice(0, -1)} criada com sucesso!`);
     
-    try {
-      const response = await fetch(`${apiEndpoint}/${itemId}`, { method: 'DELETE' });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || `Não foi possível excluir a ${itemLabel}.`);
-
-      toast.success(`${title.slice(0, -1)} excluída com sucesso!`);
-      onUpdate();
-    } catch (error: any) {
-      toast.error(`Erro ao excluir ${itemLabel}`, { description: error.message });
-    }
+    setIsModalOpen(false);
+    setNewItemName("");
+    onUpdate(); // recarrega os dados, sem disparar outro toast
+  } catch (error: any) {
+    toast.error(`Erro ao criar ${itemLabel}`, { description: error.message });
+  } finally {
+    setIsSubmitting(false);
   }
+}
+
+async function handleDelete(itemId: string, nome: string) {
+  try {
+    const response = await fetch(`${apiEndpoint}/${itemId}`, { method: "DELETE" });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || `Não foi possível excluir a ${itemLabel}.`);
+
+    // Apenas UM toast de sucesso
+    toast.success(`${title.slice(0, -1)} excluída com sucesso!`);
+    onUpdate(); // recarrega os dados sem disparar outro toast
+  } catch (error: any) {
+    toast.error(`Erro ao excluir ${itemLabel}`, { description: error.message });
+  }
+}
 
   return (
     <div className="space-y-4">
+      {/* Modal de criação */}
       <div className="flex justify-end">
         <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
           <DialogTrigger asChild>
             <Button className="gap-1">
               <PlusCircle className="h-4 w-4" />
-              Adicionar Nova {title.slice(0, -1)}
+              Adicionar Nova {itemLabel}
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Adicionar Nova {title.slice(0, -1)}</DialogTitle>
+              <DialogTitle>Adicionar Nova {itemLabel}</DialogTitle>
             </DialogHeader>
             <div className="py-4">
               <Label htmlFor="name">Nome da {itemLabel}</Label>
@@ -105,6 +117,8 @@ export function AttributeManager({ title, itemLabel, items, apiEndpoint, onUpdat
           </DialogContent>
         </Dialog>
       </div>
+
+      {/* Tabela de itens */}
       <div className="border rounded-md">
         <Table>
           <TableHeader>
@@ -119,14 +133,35 @@ export function AttributeManager({ title, itemLabel, items, apiEndpoint, onUpdat
                 <TableRow key={item.id}>
                   <TableCell className="font-medium">{item.nome}</TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-destructive hover:text-destructive"
-                      onClick={() => handleDelete(item.id, item.nome)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Excluir {itemLabel}</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Tem certeza que deseja excluir <span className="font-medium">{item.nome}</span>?  
+                            Essa ação não poderá ser desfeita.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => handleDelete(item.id, item.nome)}
+                            className="bg-destructive hover:bg-destructive/90"
+                          >
+                            Excluir
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </TableCell>
                 </TableRow>
               ))
