@@ -1,35 +1,31 @@
 'use client'
 
-import Link from "next/link";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Menu, Package } from "lucide-react";
+import { Menu } from "lucide-react";
 import { Sidebar } from "./Sidebar"; // Reutilizamos a sidebar!
 
 export function MobileHeader() {
   return (
-    <header className="flex h-14 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6">
+    // O header em si não precisa de um componente <header> aqui, pois já está dentro de um no AppShell
+    <div className="flex h-14 items-center md:hidden"> {/* Modificado para não renderizar um header aninhado e só aparecer no mobile */}
       <Sheet>
         <SheetTrigger asChild>
           <Button
             variant="outline"
             size="icon"
-            className="shrink-0 md:hidden" // Só aparece em telas menores que 'md'
+            className="shrink-0" 
           >
             <Menu className="h-5 w-5" />
             <span className="sr-only">Abrir menu de navegação</span>
           </Button>
         </SheetTrigger>
-        <SheetContent side="left" className="flex flex-col p-0">
-          {/* Reutilizamos o mesmo componente Sidebar aqui dentro */}
+        {/* CORREÇÃO APLICADA AQUI */}
+        <SheetContent side="left" className="flex flex-col p-0 bg-sidebar border-none">
+          {/* Reutilizamos o mesmo componente Sidebar aqui dentro, agora com o fundo correto */}
           <Sidebar />
         </SheetContent>
       </Sheet>
-      
-      {/* Você pode adicionar outros elementos no header mobile aqui, como um campo de busca global */}
-      <div className="w-full flex-1">
-        {/* Exemplo: <Search /> */}
-      </div>
-    </header>
+    </div>
   );
 }

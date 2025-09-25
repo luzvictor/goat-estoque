@@ -2,26 +2,30 @@
 
 import { criarNotificacaoParaAdmins } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@prisma/client/edge";
+import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 
 /**
  * GET: Lista o histórico de todas as entradas de estoque.
- * Ótimo para auditoria e relatórios.
  */
 export async function GET() {
   try {
     const entradas = await prisma.entradaEstoque.findMany({
       include: {
-        // Inclui os dados da variante e do produto base relacionado a cada entrada
         variante: {
           include: {
-            produtoBase: true,
+            produtoBase: {
+              include: {
+                marca: true,
+              }
+            },
+            cor: true,
+            tamanho: true,
           },
         },
       },
       orderBy: {
-        data: "desc", // Ordena pelas mais recentes primeiro
+        data: "desc",
       },
     });
     return NextResponse.json(entradas);
@@ -36,7 +40,6 @@ export async function GET() {
 
 /**
  * POST: Registra uma nova entrada de itens no estoque.
- * Executa duas operações em uma transação para garantir a consistência dos dados.
  */
 export async function POST(request: Request) {
   try {
@@ -59,7 +62,6 @@ export async function POST(request: Request) {
     }
 
     // --- Transação no Banco de Dados ---
-    // Alteramos para o formato de transação interativa para incluir a notificação
     const resultado = await prisma.$transaction(async (tx) => {
       // 1. Cria o registro histórico na tabela de entradas
       await tx.entradaEstoque.create({
@@ -78,21 +80,31 @@ export async function POST(request: Request) {
             increment: qtdNumber,
           },
         },
-        // Incluímos os dados do produto base para usar na mensagem da notificação
+        // CORREÇÃO: Incluímos todas as informações necessárias para a notificação.
         include: {
-            produtoBase: true
-        }
+          cor: true,       // Inclui o objeto Cor
+          tamanho: true,   // Inclui o objeto Tamanho
+          produtoBase: {   // Inclui o ProdutoBase...
+            include: {
+              marca: true, // ...e a Marca dentro dele.
+            },
+          },
+        },
       });
 
-      // =======================================================
-      // 3. PASSO NOVO: Criar e enviar a notificação
-      // =======================================================
-      const nomeProduto = `${varianteAtualizada.produtoBase.marca} - ${varianteAtualizada.produtoBase.nome} (${varianteAtualizada.cor})`;
+      // 3. Monta a mensagem da notificação com os dados completos
+      const marcaNome = varianteAtualizada.produtoBase.marca.nome;
+      const produtoNome = varianteAtualizada.produtoBase.nome;
+      const corNome = varianteAtualizada.cor.nome;
+      const tamanhoNome = varianteAtualizada.tamanho?.nome || 'Tamanho Único';
+
+      const mensagem = `${qtdNumber} unidades de "${marcaNome} - ${produtoNome} (${corNome}, ${tamanhoNome})" foram adicionadas ao estoque.`;
       
+      // 4. Cria a notificação persistente no banco de dados
       await criarNotificacaoParaAdmins({
-        tx, // Passa o cliente da transação para o helper
-        mensagem: `${qtdNumber} unidades de "${nomeProduto}" foram adicionadas ao estoque.`,
-        link: `/produtos`, // Link opcional para a página de produtos
+        tx,
+        mensagem: mensagem,
+        link: `/produtos`,
       });
       
       return varianteAtualizada;
@@ -104,7 +116,8 @@ export async function POST(request: Request) {
     console.error("Erro ao registrar entrada:", error);
     
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      if (error.code === 'P2003' || error.code === 'P2025') {
+      // Se a variante não for encontrada no update
+      if (error.code === 'P2025') {
         return NextResponse.json(
           { error: "A variante de produto especificada não foi encontrada." },
           { status: 404 }

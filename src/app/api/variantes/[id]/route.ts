@@ -1,5 +1,4 @@
 // Em: src/app/api/variantes/[id]/route.ts
-
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
@@ -13,13 +12,61 @@ export async function PUT(
     const { id } = params; // Este é o id_variante
     const body = await request.json();
     
-    // Filtra para garantir que apenas campos válidos sejam atualizados
-    const { cor, tamanho, valorCusto, valorVenda, estoqueMin, quantidade, sku, imageUrl } = body;
-    const dataToUpdate = { cor, tamanho, valorCusto, valorVenda, estoqueMin, quantidade, sku, imageUrl };
+    // Desestrutura o body para pegar todos os campos possíveis
+    const { 
+        corId, 
+        tamanhoId, 
+        valorCusto, 
+        valorVenda, 
+        estoqueMin, 
+        quantidade, 
+        sku, 
+        imageUrl 
+    } = body;
+
+    // Constrói o objeto de atualização dinamicamente
+    // Isso garante que apenas os campos enviados no body sejam atualizados
+    const dataToUpdate: Prisma.VarianteProdutoUpdateInput = {};
+
+    // Campos diretos (escalares)
+    if (valorCusto !== undefined) dataToUpdate.valorCusto = parseFloat(valorCusto);
+    if (valorVenda !== undefined) dataToUpdate.valorVenda = parseFloat(valorVenda);
+    if (estoqueMin !== undefined) dataToUpdate.estoqueMin = parseInt(estoqueMin, 10);
+    if (quantidade !== undefined) dataToUpdate.quantidade = parseInt(quantidade, 10);
+    if (sku !== undefined) dataToUpdate.sku = sku;
+    if (imageUrl !== undefined) dataToUpdate.imageUrl = imageUrl;
+
+    // Campos de relacionamento
+    // Se um corId for enviado, conecta a nova cor
+    if (corId !== undefined) {
+      dataToUpdate.cor = { connect: { id: corId } };
+    }
+    
+    // Se um tamanhoId for enviado, conecta o novo tamanho
+    if (tamanhoId !== undefined) {
+        // Se o tamanhoId for nulo, significa que o usuário quer remover o tamanho
+        if (tamanhoId === null) {
+            dataToUpdate.tamanho = { disconnect: true };
+        } else {
+            dataToUpdate.tamanho = { connect: { id: tamanhoId } };
+        }
+    }
+
+    // Verifica se há algo para atualizar
+    if (Object.keys(dataToUpdate).length === 0) {
+      return NextResponse.json(
+        { error: "Nenhum dado para atualização foi fornecido." },
+        { status: 400 }
+      );
+    }
 
     const varianteAtualizada = await prisma.varianteProduto.update({
       where: { id_variante: id },
       data: dataToUpdate,
+      include: {
+        cor: true,
+        tamanho: true
+      }
     });
 
     return NextResponse.json(varianteAtualizada);
@@ -30,14 +77,17 @@ export async function PUT(
         return NextResponse.json({ error: "Variante não encontrada." }, { status: 404 });
       }
       if (error.code === 'P2002') {
-        return NextResponse.json({ error: "Já existe uma variante com este SKU." }, { status: 409 });
+        // O campo 'meta.target' pode te dizer qual campo unique falhou
+        const target = (error.meta?.target as string[])?.join(', ');
+        return NextResponse.json({ error: `O campo ${target} já está em uso.` }, { status: 409 });
       }
     }
-    return NextResponse.json({ error: "Erro ao atualizar variante." }, { status: 500 });
+    return NextResponse.json({ error: "Erro interno ao atualizar variante." }, { status: 500 });
   }
 }
 
 // DELETE - Deletar uma Variante de Produto específica
+// A sua função DELETE já está muito bem implementada com transação. Nenhuma alteração necessária.
 export async function DELETE(
   request: Request,
   { params }: { params: { id: string } }
@@ -45,29 +95,22 @@ export async function DELETE(
   try {
     const { id: variantIdToDelete } = params;
 
-    // Usamos uma transação para garantir a consistência dos dados.
-    // Ou tudo funciona, ou nada é alterado no banco.
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Primeiro, encontramos a variante para obter o ID do seu produto base.
-      // Usamos findUniqueOrThrow para garantir que a variante existe antes de prosseguir.
       const variant = await tx.varianteProduto.findUniqueOrThrow({
         where: { id_variante: variantIdToDelete },
-        select: { produtoBaseId: true }, // Só precisamos do ID do pai
+        select: { produtoBaseId: true },
       });
 
       const { produtoBaseId } = variant;
 
-      // 2. Deletamos a variante especificada.
       await tx.varianteProduto.delete({
         where: { id_variante: variantIdToDelete },
       });
 
-      // 3. Contamos quantas variantes RESTARAM para o mesmo produto base.
       const remainingVariantsCount = await tx.varianteProduto.count({
         where: { produtoBaseId: produtoBaseId },
       });
 
-      // 4. Se não restou nenhuma variante, deletamos o produto base "órfão".
       if (remainingVariantsCount === 0) {
         await tx.produtoBase.delete({
           where: { id_produto_base: produtoBaseId },
@@ -82,7 +125,6 @@ export async function DELETE(
 
   } catch (error: any) {
     console.error("Erro ao remover variante:", error);
-    // Erro comum se a variante a ser deletada não for encontrada no início.
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
       return NextResponse.json(
         { error: "Variante não encontrada para remoção." },

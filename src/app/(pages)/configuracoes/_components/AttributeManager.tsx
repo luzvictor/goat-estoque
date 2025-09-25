@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogFooter, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -29,7 +29,7 @@ type AttributeItem = {
 // Props que o nosso componente reutilizável vai aceitar
 interface AttributeManagerProps {
   title: string; // Ex: "Marcas"
-  itemLabel: string; // Ex: "marca"
+  itemLabel: string; // Ex: "Marca"
   items: AttributeItem[];
   apiEndpoint: string; // Ex: "/api/marcas"
   onUpdate: () => void; // Função para recarregar os dados na página principal
@@ -40,48 +40,72 @@ export function AttributeManager({ title, itemLabel, items, apiEndpoint, onUpdat
   const [newItemName, setNewItemName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Objeto para mapear títulos a placeholders específicos
+  const placeholders: { [key: string]: string } = {
+    Marcas: "Ex: Nike, Adidas...",
+    Categorias: "Ex: Camisetas, Calças...",
+    Cores: "Ex: Azul Marinho, Preto...",
+    Tamanhos: "Ex: P, M, G...",
+  };
+
+  // Seleciona o placeholder com base no título, com um fallback genérico
+  const placeholderText = placeholders[title] || `Nome do(a) ${itemLabel}`;
+
+  // Determina o gênero do item para ajustar as mensagens de notificação
+  const isMasculine = itemLabel === "Tamanho";
+
+  // Efeito para limpar o campo de input sempre que o modal for fechado
+  useEffect(() => {
+    if (!isModalOpen) {
+      // Adiciona um pequeno delay para a animação de fechamento do modal ser suave
+      setTimeout(() => {
+        setNewItemName("");
+      }, 150);
+    }
+  }, [isModalOpen]);
+
   // Função para criar um novo item (marca, categoria, etc.)
   async function handleCreate() {
-  if (!newItemName.trim()) {
-    toast.error(`O nome da ${itemLabel} não pode ser vazio.`);
-    return;
-  }
-  setIsSubmitting(true);
-  try {
-    const response = await fetch(apiEndpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nome: newItemName }),
-    });
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.error || `Não foi possível criar a ${itemLabel}.`);
+    if (!newItemName.trim()) {
+      toast.error(`O nome do ${itemLabel} não pode ser vazio.`);
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const response = await fetch(apiEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nome: newItemName }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || `Não foi possível criar ${itemLabel}.`);
 
-    // Aqui disparo apenas UM toast
-    toast.success(`${title.slice(0, -1)} criada com sucesso!`);
-    
-    setIsModalOpen(false);
-    setNewItemName("");
-    onUpdate(); // recarrega os dados, sem disparar outro toast
-  } catch (error: any) {
-    toast.error(`Erro ao criar ${itemLabel}`, { description: error.message });
-  } finally {
-    setIsSubmitting(false);
+      const participle = isMasculine ? 'criado' : 'criada';
+      toast.success(`${itemLabel} ${participle} com sucesso!`);
+      
+      setIsModalOpen(false); // Fecha o modal
+      onUpdate(); // Chama a função para recarregar os dados na página pai
+    } catch (error: any) {
+      toast.error(`Erro ao criar ${itemLabel}`, { description: error.message });
+    } finally {
+      setIsSubmitting(false);
+    }
   }
-}
 
-async function handleDelete(itemId: string, nome: string) {
-  try {
-    const response = await fetch(`${apiEndpoint}/${itemId}`, { method: "DELETE" });
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.error || `Não foi possível excluir a ${itemLabel}.`);
+  // Função para deletar um item. Movida para dentro do componente.
+  async function handleDelete(itemId: string) {
+    try {
+      const response = await fetch(`${apiEndpoint}/${itemId}`, { method: "DELETE" });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || `Não foi possível excluir ${itemLabel}.`);
 
-    // Apenas UM toast de sucesso
-    toast.success(`${title.slice(0, -1)} excluída com sucesso!`);
-    onUpdate(); // recarrega os dados sem disparar outro toast
-  } catch (error: any) {
-    toast.error(`Erro ao excluir ${itemLabel}`, { description: error.message });
+      const participle = isMasculine ? 'excluído' : 'excluída';
+      toast.success(`${itemLabel} ${participle} com sucesso!`);
+      onUpdate(); // Recarrega os dados na página pai
+    } catch (error: any) {
+      toast.error(`Erro ao excluir ${itemLabel}`, { description: error.message });
+    }
   }
-}
 
   return (
     <div className="space-y-4">
@@ -91,20 +115,20 @@ async function handleDelete(itemId: string, nome: string) {
           <DialogTrigger asChild>
             <Button className="gap-1">
               <PlusCircle className="h-4 w-4" />
-              Adicionar Nova {itemLabel}
+              Adicionar {itemLabel}
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Adicionar Nova {itemLabel}</DialogTitle>
+              <DialogTitle>Adicionar {itemLabel}</DialogTitle>
             </DialogHeader>
             <div className="py-4">
-              <Label htmlFor="name">Nome da {itemLabel}</Label>
+              <Label htmlFor="name">{itemLabel}</Label>
               <Input
                 id="name"
                 value={newItemName}
                 onChange={(e) => setNewItemName(e.target.value)}
-                placeholder={`Ex: Nike, Adidas...`}
+                placeholder={placeholderText}
               />
             </div>
             <DialogFooter>
@@ -147,14 +171,14 @@ async function handleDelete(itemId: string, nome: string) {
                         <AlertDialogHeader>
                           <AlertDialogTitle>Excluir {itemLabel}</AlertDialogTitle>
                           <AlertDialogDescription>
-                            Tem certeza que deseja excluir <span className="font-medium">{item.nome}</span>?  
-                            Essa ação não poderá ser desfeita.
+                            Tem certeza que deseja excluir <span className="font-medium">{item.nome}</span>? 
+                            Esta ação não poderá ser desfeita.
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                           <AlertDialogCancel>Cancelar</AlertDialogCancel>
                           <AlertDialogAction
-                            onClick={() => handleDelete(item.id, item.nome)}
+                            onClick={() => handleDelete(item.id)}
                             className="bg-destructive hover:bg-destructive/90"
                           >
                             Excluir
@@ -178,3 +202,4 @@ async function handleDelete(itemId: string, nome: string) {
     </div>
   );
 }
+

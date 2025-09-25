@@ -1,21 +1,33 @@
-// Em: src/components/AppShell.tsx
-
 'use client'
 
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/Sidebar';
 import { MobileHeader } from '@/components/MobileHeader';
-
-// --- Imports para o Header ---
 import { NotificationBell } from '@/components/NotificationBell';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { CircleUser } from 'lucide-react';
+import { toast } from 'sonner';
 
-
-// Este componente "envolve" as páginas e decide qual layout usar.
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+
+  // Função para fazer logout do usuário
+  async function handleLogout() {
+    try {
+      const response = await fetch('/api/logout', { method: 'POST' });
+      if (response.ok) {
+        toast.success("Você saiu com sucesso!");
+        router.push('/login');
+        router.refresh(); // Limpa o cache e garante que o estado do usuário seja atualizado
+      } else {
+        toast.error('Não foi possível sair. Tente novamente.');
+      }
+    } catch (error) {
+      toast.error('Ocorreu um erro de rede ao tentar sair.');
+    }
+  }
 
   // Se a rota for a de login, renderiza apenas o conteúdo em um layout simples
   if (pathname === '/login') {
@@ -26,20 +38,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Para todas as outras rotas, renderiza o layout principal com a sidebar
-  // CORREÇÃO 1: 'h-screen' e 'overflow-hidden' para travar o layout na altura da tela
+  // Para todas as outras rotas, renderiza o layout principal
   return (
     <div className="grid h-screen w-full overflow-hidden md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
       
-      {/* Sidebar para Desktop (fixa) */}
       <div className="hidden border-r bg-sidebar md:block">
         <Sidebar />
       </div>
 
-      {/* Conteúdo Principal (com rolagem própria) */}
-      {/* CORREÇÃO 2: 'overflow-auto' para dar scroll apenas nesta coluna */}
       <div className="flex flex-col overflow-auto">
-        
         <header className="flex h-14 items-center gap-4 border-b bg-card px-4 lg:h-[60px] lg:px-6 sticky top-0 z-10">
           <MobileHeader />
 
@@ -59,15 +66,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <DropdownMenuContent align="end">
                 <DropdownMenuLabel>Minha Conta</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem>Configurações</DropdownMenuItem>
+                {/* CORREÇÃO: Adicionado onClick para navegar e classe de cursor */}
+                <DropdownMenuItem onClick={() => router.push('/configuracoes')} className="cursor-pointer">
+                  Configurações
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem>Sair</DropdownMenuItem>
+                {/* CORREÇÃO: Adicionado onClick para fazer logout e classe de cursor */}
+                <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
+                  Sair
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
         </header>
 
-        {/* O conteúdo da sua página (children) será renderizado aqui */}
         <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6 bg-background">
           {children}
         </main>
@@ -75,3 +87,4 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
+

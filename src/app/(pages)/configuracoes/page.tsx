@@ -5,9 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AttributeManager } from "./_components/AttributeManager";
 import { Loader2 } from "lucide-react";
-import { Toaster, toast } from "sonner";
 
-// Tipagem genérica para os itens
+// Tipagem genérica para os itens (Marca, Categoria, Cor, Tamanho)
 type AttributeItem = {
   id: string;
   nome: string;
@@ -32,13 +31,14 @@ export default function ConfiguracoesPage() {
       setter(data);
     } catch (error: any) {
       console.error("Erro ao carregar dados de", endpoint, error.message);
-      // Não dispara toast aqui para evitar duplicidade
+      // O feedback de erro será tratado pelo `toast` no `AttributeManager` se a ação falhar
     }
   };
 
   // Função para recarregar todos os dados
   const fetchAllData = async () => {
     setIsLoading(true);
+    // Promise.all executa todas as buscas em paralelo para mais performance
     await Promise.all([
       fetchData("/api/marcas", setMarcas),
       fetchData("/api/categorias", setCategorias),
@@ -48,81 +48,80 @@ export default function ConfiguracoesPage() {
     setIsLoading(false);
   };
 
+  // Efeito para buscar os dados iniciais quando o componente é montado
   useEffect(() => {
     fetchAllData();
   }, []);
 
   return (
-    <>
-      {/* Apenas um Toaster global na página */}
-      <Toaster richColors />
-      <div className="flex flex-col gap-4">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-2xl font-bold tracking-tight text-accent">
-              Configurações do Sistema
-            </CardTitle>
-            <CardDescription>
-              Gerencie os atributos e opções disponíveis para seus produtos.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Tabs defaultValue="marcas" className="w-full">
-              <TabsList className="grid w-full grid-cols-4">
-                <TabsTrigger value="marcas">Marcas</TabsTrigger>
-                <TabsTrigger value="categorias">Categorias</TabsTrigger>
-                <TabsTrigger value="cores">Cores</TabsTrigger>
-                <TabsTrigger value="tamanhos">Tamanhos</TabsTrigger>
-              </TabsList>
+    // O componente <Toaster /> foi removido daqui para evitar duplicidade.
+    // Ele deve existir apenas uma vez, no seu arquivo de layout principal (app/layout.tsx).
+    <div className="flex flex-col gap-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-2xl font-bold tracking-tight text-accent">
+            Configurações do Sistema
+          </CardTitle>
+          <CardDescription>
+            Gerencie os atributos e opções disponíveis para seus produtos.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Tabs defaultValue="marcas" className="w-full">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="marcas">Marcas</TabsTrigger>
+              <TabsTrigger value="categorias">Categorias</TabsTrigger>
+              <TabsTrigger value="cores">Cores</TabsTrigger>
+              <TabsTrigger value="tamanhos">Tamanhos</TabsTrigger>
+            </TabsList>
 
-              {isLoading ? (
-                <div className="flex justify-center items-center h-64">
-                  <Loader2 className="h-8 w-8 animate-spin text-accent" />
-                </div>
-              ) : (
-                <>
-                  <TabsContent value="marcas">
-                    <AttributeManager
-                      title="Marcas"
-                      itemLabel="Marca"
-                      items={marcas}
-                      apiEndpoint="/api/marcas"
-                      onUpdate={fetchAllData}
-                    />
-                  </TabsContent>
-                  <TabsContent value="categorias">
-                    <AttributeManager
-                      title="Categorias"
-                      itemLabel="Categoria"
-                      items={categorias}
-                      apiEndpoint="/api/categorias"
-                      onUpdate={fetchAllData}
-                    />
-                  </TabsContent>
-                  <TabsContent value="cores">
-                    <AttributeManager
-                      title="Cores"
-                      itemLabel="Cor"
-                      items={cores}
-                      apiEndpoint="/api/cores"
-                      onUpdate={fetchAllData}
-                    />
-                  </TabsContent>
-                  <TabsContent value="tamanhos">
-                    <AttributeManager
-                      title="Tamanhos"
-                      itemLabel="Tamanho"
-                      items={tamanhos}
-                      apiEndpoint="/api/tamanhos"
-                      onUpdate={fetchAllData}
-                    />
-                  </TabsContent>
-                </>
-              )}
-            </Tabs>
-          </CardContent>
-        </Card>
-      </div>
-    </>
+            {isLoading ? (
+              <div className="flex justify-center items-center h-64">
+                <Loader2 className="h-8 w-8 animate-spin text-accent" />
+              </div>
+            ) : (
+              <>
+                <TabsContent value="marcas">
+                  <AttributeManager
+                    title="Marcas"
+                    itemLabel="Marca"
+                    items={marcas}
+                    apiEndpoint="/api/marcas"
+                    onUpdate={fetchAllData} // Passa a função para recarregar os dados
+                  />
+                </TabsContent>
+                <TabsContent value="categorias">
+                  <AttributeManager
+                    title="Categorias"
+                    itemLabel="Categoria"
+                    items={categorias}
+                    apiEndpoint="/api/categorias"
+                    onUpdate={fetchAllData}
+                  />
+                </TabsContent>
+                <TabsContent value="cores">
+                  <AttributeManager
+                    title="Cores"
+                    itemLabel="Cor"
+                    items={cores}
+                    apiEndpoint="/api/cores"
+                    onUpdate={fetchAllData}
+                  />
+                </TabsContent>
+                <TabsContent value="tamanhos">
+                  <AttributeManager
+                    title="Tamanhos"
+                    itemLabel="Tamanho"
+                    items={tamanhos}
+                    apiEndpoint="/api/tamanhos"
+                    onUpdate={fetchAllData}
+                  />
+                </TabsContent>
+              </>
+            )}
+          </Tabs>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
