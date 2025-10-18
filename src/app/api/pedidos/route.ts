@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
+import { Prisma, StatusPedido } from "@prisma/client";
 
 /**
  * GET: Lista todos os pedidos do sistema, incluindo detalhes dos produtos,
@@ -11,31 +11,36 @@ import { Prisma } from "@prisma/client";
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    
-    // --- LÓGICA DE PAGINAÇÃO ---
+
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '10');
     const skip = (page - 1) * limit;
 
-    // --- LÓGICA DE FILTRO DE DATA (JÁ EXISTENTE) ---
     const mes = searchParams.get('mes');
     const ano = searchParams.get('ano');
+    const statusParam = searchParams.get('status'); // novo filtro de status
 
-    let whereClause: Prisma.PedidoWhereInput = {};
+    let whereClause: any = {};
 
+    // --- FILTRO DE DATA ---
     if (mes && ano) {
       const mesNumero = parseInt(mes);
       const anoNumero = parseInt(ano);
       if (!isNaN(mesNumero) && !isNaN(anoNumero)) {
         const dataInicio = new Date(anoNumero, mesNumero - 1, 1);
         const dataFim = new Date(anoNumero, mesNumero, 1);
-        whereClause = {
-          data: { gte: dataInicio, lt: dataFim },
-        };
+        whereClause.data = { gte: dataInicio, lt: dataFim };
       }
     }
 
-    // Executa as duas queries (dados + contagem total) em uma única transação
+    // --- FILTRO DE STATUS ---
+    if (statusParam && statusParam !== "Todos") {
+      // Normaliza "Concluído" para "Concluido" caso seja necessário
+      const normalizedStatus = statusParam === "Concluído" ? "Concluido" : statusParam;
+      whereClause.status = normalizedStatus as StatusPedido;
+    }
+
+    // --- QUERY PRINCIPAL COM TRANSAÇÃO ---
     const [pedidos, total] = await prisma.$transaction([
       prisma.pedido.findMany({
         where: whereClause,
@@ -46,20 +51,17 @@ export async function GET(request: Request) {
               variante: {
                 include: {
                   produtoBase: {
-                    include: {
-                      marca: true,
-                      categoria: true,
-                    },
+                    include: { marca: true, categoria: true }
                   },
                   cor: true,
                   tamanho: true,
-                },
-              },
-            },
-          },
+                }
+              }
+            }
+          }
         },
         orderBy: { data: 'desc' },
-        skip: skip,
+        skip,
         take: limit,
       }),
       prisma.pedido.count({ where: whereClause }),
@@ -69,12 +71,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       data: pedidos,
-      pagination: {
-        totalItems: total,
-        totalPages,
-        currentPage: page,
-        pageSize: limit,
-      }
+      pagination: { totalItems: total, totalPages, currentPage: page, pageSize: limit }
     });
 
   } catch (error) {
@@ -82,7 +79,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Erro ao buscar pedidos." }, { status: 500 });
   }
 }
-
 /**
  * POST: Cria um novo pedido, verifica o estoque e dá baixa de forma transacional.
  * Recebe um corpo JSON: { clienteId?: string, produtos: [{ varianteId: string, quantidade: number }] }

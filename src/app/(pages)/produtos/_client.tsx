@@ -102,9 +102,10 @@ export default function ProdutosPageClient() {
   const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false);
 
   const [formBase, setFormBase] = useState({ nome: "", categoriaId: "", marcaId: "" });
+  
   const [formVariante, setFormVariante] = useState({ corId: "", tamanhoId: "", quantidade: 0, valorCusto: "", valorVenda: "", estoqueMin: 0, sku: "" });
   const [editingItem, setEditingItem] = useState<ProdutoDisplay | null>(null);
-  const [entryForm, setEntryForm] = useState({ varianteId: "", quantidade: 0, numeroNota: "" });
+  const [entryForm, setEntryForm] = useState({ varianteId: "", quantidade: 0, numeroNota: "", data: new Date().toISOString().split("T")[0], marcaId: "",  });
   const [variantToDelete, setVariantToDelete] = useState<ProdutoDisplay | null>(null);
 
   // controla qual DropdownMenu está aberto (por id da variante)
@@ -148,8 +149,8 @@ export default function ProdutosPageClient() {
   // Dentro do seu componente _client.tsx
 
 const handleRegisterEntry = async () => {
-  if (!entryForm.varianteId || entryForm.quantidade <= 0) {
-    toast.error("Selecione uma variante e informe uma quantidade válida.");
+  if (!entryForm.varianteId || !entryForm.marcaId || entryForm.quantidade <= 0 || !entryForm.numeroNota) {
+    toast.error("Preencha todos os campos obrigatórios: fornecedor, variante, quantidade e nota.");
     return;
   }
 
@@ -165,8 +166,8 @@ const handleRegisterEntry = async () => {
     if (!response.ok) throw new Error(result.error || "Erro ao registrar entrada.");
 
     toast.success("Entrada registrada com sucesso!");
-    setEntryModalOpen(false); // fecha o modal
-    setEntryForm({ varianteId: "", quantidade: 0, numeroNota: "" }); // limpa formulário
+    setEntryModalOpen(false);
+    setEntryForm({ varianteId: "", quantidade: 0, numeroNota: "", data: new Date().toISOString().split("T")[0], marcaId: "" });
     await fetchAllData(currentPage); // atualiza tabela
   } catch (error: any) {
     toast.error("Erro ao registrar entrada", { description: error.message });
@@ -174,6 +175,7 @@ const handleRegisterEntry = async () => {
     setIsSubmitting(false);
   }
 };
+
 
   useEffect(() => {
     fetchAllData(currentPage);
@@ -201,6 +203,8 @@ const handleRegisterEntry = async () => {
       }))
     );
   }, [produtosBase]);
+
+  const [filteredProdutos, setFilteredProdutos] = useState(displayProdutos);
 
   async function criarProduto() {
     if (!formBase.nome.trim() || !formBase.marcaId || !formBase.categoriaId || !formVariante.corId) {
@@ -301,6 +305,12 @@ const handleRegisterEntry = async () => {
     if (editingItem) setEditModalOpen(true);
   }, [editingItem]);
 
+  useEffect(() => {
+  if (isEntryModalOpen) {
+    setFilteredProdutos(displayProdutos);
+  }
+}, [isEntryModalOpen, displayProdutos]);
+
   // handlers que fecham o menu antes de abrir o modal/alerta
   const handleEditFromMenu = (produto: ProdutoDisplay) => {
     setOpenMenuId(null);
@@ -331,35 +341,107 @@ const handleRegisterEntry = async () => {
               <Input placeholder="Pesquisar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full md:w-64"/>
 
               <Dialog open={isEntryModalOpen} onOpenChange={setEntryModalOpen}>
-                <DialogTrigger asChild><Button variant="outline" className="shrink-0">Registrar Entrada</Button></DialogTrigger>
-                <DialogContent>
-                  <DialogHeader><DialogTitle>Registrar Nova Entrada</DialogTitle></DialogHeader>
-                  <div className="space-y-4 py-4">
-                    <div>
-                      <Label htmlFor="variante-select">Produto (Variante)</Label>
-                      <Select value={entryForm.varianteId} onValueChange={(value) => setEntryForm(prev => ({...prev, varianteId: value}))}>
-                        <SelectTrigger id="variante-select"><SelectValue placeholder="Selecione uma variante" /></SelectTrigger>
-                        <SelectContent>
-                          {displayProdutos.map((produto) => (
-                            <SelectItem key={produto.id_variante} value={produto.id_variante}>
-                              {produto.marca.nome} - {produto.nome} ({produto.cor.nome}, {produto.tamanho?.nome || 'Único'})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div><Label htmlFor="quantidade_entrada">Quantidade</Label><Input id="quantidade_entrada" type="number" min={1} value={entryForm.quantidade || ''} onChange={(e) => setEntryForm(prev => ({ ...prev, quantidade: Number(e.target.value) }))} /></div>
-                    <div><Label htmlFor="numeroNota">Nota Fiscal (Opcional)</Label><Input id="numeroNota" value={entryForm.numeroNota} onChange={(e) => setEntryForm(prev => ({ ...prev, numeroNota: e.target.value }))} /></div>
-                  </div>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setEntryModalOpen(false)}>Cancelar</Button>
-                    <Button onClick={handleRegisterEntry} disabled={isSubmitting}>
-                      {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      Salvar Entrada
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="shrink-0">Registrar Entrada</Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Registrar Nova Entrada</DialogTitle>
+                </DialogHeader>
+
+                <div className="space-y-4 py-4">
+  {/* Data da Entrada */}
+                <div>
+                  <Label htmlFor="dataEntrada">Data da Entrada</Label>
+                  <Input
+                    id="dataEntrada"
+                    type="date"
+                    value={entryForm.data}
+                    onChange={(e) => setEntryForm(prev => ({ ...prev, data: e.target.value }))}
+                  />
+                </div>
+
+                {/* Fornecedor / Marca */}
+                <div>
+                  <Label htmlFor="marcaEntrada">Fornecedor (Marca)</Label>
+                  <Select
+                    value={entryForm.marcaId}
+                    onValueChange={(value) => {
+                      setEntryForm(prev => ({ ...prev, marcaId: value, varianteId: "" }));
+                      const produtosFiltrados = displayProdutos.filter(p => p.marca.id === value);
+                      setFilteredProdutos(produtosFiltrados);
+                    }}
+                  >
+                    <SelectTrigger id="marcaEntrada">
+                      <SelectValue placeholder="Selecione um fornecedor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {marcas.map(m => (
+                        <SelectItem key={m.id} value={m.id}>
+                          {m.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Produto / Variante */}
+                <div>
+                  <Label htmlFor="variante-select">Produto (Variante)</Label>
+                  <Select
+                    value={entryForm.varianteId}
+                    onValueChange={(value) => setEntryForm(prev => ({ ...prev, varianteId: value }))}
+                  >
+                    <SelectTrigger id="variante-select">
+                      <SelectValue placeholder="Selecione uma variante" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {filteredProdutos.map((produto) => (
+                        <SelectItem key={produto.id_variante} value={produto.id_variante}>
+                          {produto.marca.nome} - {produto.nome} ({produto.cor.nome}, {produto.tamanho?.nome || "Único"})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Quantidade */}
+                <div>
+                  <Label htmlFor="quantidade_entrada">Quantidade</Label>
+                  <Input
+                    id="quantidade_entrada"
+                    type="number"
+                    min={1}
+                    value={entryForm.quantidade || ""}
+                    onChange={(e) => {
+                        const valor = Number(e.target.value);
+                        if (isNaN(valor) || valor < 1) return;
+                        setEntryForm((prev) => ({ ...prev, quantidade: valor }));
+                      }}
+                    />
+                </div>
+
+                {/* Nota Fiscal */}
+                <div>
+                  <Label htmlFor="numeroNota">Nota Fiscal</Label>
+                  <Input
+                    id="numeroNota"
+                    value={entryForm.numeroNota}
+                    onChange={(e) => setEntryForm(prev => ({ ...prev, numeroNota: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setEntryModalOpen(false)}>Cancelar</Button>
+                  <Button onClick={handleRegisterEntry} disabled={isSubmitting || !entryForm.numeroNota || !entryForm.quantidade || !entryForm.varianteId}>
+                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Salvar Entrada
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
 
               <Dialog open={isCreateModalOpen} onOpenChange={setCreateModalOpen}>
                 <DialogTrigger asChild><Button className="bg-accent text-accent-foreground hover:bg-accent/90 shrink-0 gap-1"><PlusCircle className="h-4 w-4" />Adicionar</Button></DialogTrigger>
@@ -396,11 +478,63 @@ const handleRegisterEntry = async () => {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div><Label>Quantidade Inicial</Label><Input type="number" min={0} value={formVariante.quantidade} onChange={(e) => setFormVariante(p => ({...p, quantidade: Number(e.target.value)}))} /></div>
-                    <div><Label>Valor de Custo (R$)</Label><Input type="text" value={formVariante.valorCusto} onChange={(e) => setFormVariante(p => ({...p, valorCusto: formatCurrency(e.target.value)}))} /></div>
-                    <div><Label>Valor de Venda (R$)</Label><Input type="text" value={formVariante.valorVenda} onChange={(e) => setFormVariante(p => ({...p, valorVenda: formatCurrency(e.target.value)}))} /></div>
-                    <div><Label>Estoque Mínimo</Label><Input type="number" min={0} value={formVariante.estoqueMin} onChange={(e) => setFormVariante(p => ({...p, estoqueMin: Number(e.target.value)}))} /></div>
-                    <div><Label>SKU</Label><Input value={formVariante.sku} onChange={(e) => setFormVariante(p => ({...p, sku: e.target.value}))} /></div>
+                    <div>
+                      <Label>Quantidade Inicial</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={formVariante.quantidade || ''}
+                        onChange={(e) => {
+                          const valor = Number(e.target.value);
+                          if (isNaN(valor) || valor < 0) return;
+                          setFormVariante((p) => ({ ...p, quantidade: valor }));
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <Label>Valor de Custo (R$)</Label>
+                      <Input
+                        type="text"
+                        value={formVariante.valorCusto}
+                        onChange={(e) =>
+                          setFormVariante((p) => ({ ...p, valorCusto: formatCurrency(e.target.value) }))
+                        }
+                      />
+                    </div>
+
+                    <div>
+                      <Label>Valor de Venda (R$)</Label>
+                      <Input
+                        type="text"
+                        value={formVariante.valorVenda}
+                        onChange={(e) =>
+                          setFormVariante((p) => ({ ...p, valorVenda: formatCurrency(e.target.value) }))
+                        }
+                      />
+                    </div>
+
+                    <div>
+                      <Label>Estoque Mínimo</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={formVariante.estoqueMin || ''}
+                        onChange={(e) => {
+                          const valor = Number(e.target.value);
+                          if (isNaN(valor) || valor < 0) return; 
+                          setFormVariante((p) => ({ ...p, estoqueMin: valor }));
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <Label>SKU</Label>
+                      <Input
+                        value={formVariante.sku}
+                        onChange={(e) => setFormVariante((p) => ({ ...p, sku: e.target.value }))}
+                      />
+                    </div>
                   </div>
                   <DialogFooter>
                     <Button variant="outline" onClick={() => setCreateModalOpen(false)}>Cancelar</Button>
@@ -531,10 +665,10 @@ const handleRegisterEntry = async () => {
                     </SelectContent>
                   </Select>
                 </div>
-                <div><Label>Quantidade</Label><Input type="number" min={0} value={editingItem.quantidade} onChange={(e) => setEditingItem(p => p ? {...p, quantidade: Number(e.target.value)} : null)} /></div>
+                <div><Label>Quantidade</Label><Input type="number" min={0} value={editingItem.quantidade} onChange={(e) => { const valor = Number(e.target.value); if (isNaN(valor) || valor < 0) return; setEditingItem(p => p ? {...p, quantidade: Number(e.target.value)} : null)}} /></div>
                 <div><Label>Valor de Custo (R$)</Label><Input type="text" value={formatCurrency(editingItem.valorCusto)} onChange={(e) => setEditingItem(p => p ? {...p, valorCusto: e.target.value} : null)} /></div>
                 <div><Label>Valor de Venda (R$)</Label><Input type="text" value={formatCurrency(editingItem.valorVenda)} onChange={(e) => setEditingItem(p => p ? {...p, valorVenda: e.target.value} : null)} /></div>
-                <div><Label>Estoque Mínimo</Label><Input type="number" min={0} value={editingItem.estoqueMin} onChange={(e) => setEditingItem(p => p ? {...p, estoqueMin: Number(e.target.value)} : null)} /></div>
+                <div><Label>Estoque Mínimo</Label><Input type="number" min={0} value={editingItem.estoqueMin} onChange={(e) => { const valor = Number(e.target.value); if (isNaN(valor) || valor < 0) return; setEditingItem(p => p ? {...p, estoqueMin: Number(e.target.value)} : null)}} /></div>
                 <div><Label>SKU</Label><Input value={editingItem.sku || ''} onChange={(e) => setEditingItem(p => p ? {...p, sku: e.target.value} : null)} /></div>
               </div>
               <DialogFooter>

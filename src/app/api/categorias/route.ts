@@ -6,8 +6,17 @@ import { Prisma } from "@prisma/client";
 
 // GET: Lista todas as categorias em ordem alfabética
 export async function GET() {
-  const categorias = await prisma.categoria.findMany({ orderBy: { nome: 'asc' } });
-  return NextResponse.json(categorias);
+  try {
+    const categorias = await prisma.categoria.findMany({
+      orderBy: {
+        nome: 'asc',
+      },
+    });
+    return NextResponse.json(categorias);
+  } catch (error) {
+    console.error("Erro ao buscar categorias:", error);
+    return NextResponse.json({ error: "Erro ao buscar categorias." }, { status: 500 });
+  }
 }
 
 // POST: Cria uma nova categoria

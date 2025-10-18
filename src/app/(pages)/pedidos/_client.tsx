@@ -61,7 +61,8 @@ export default function PedidosPageClient() {
   const [isClienteComboboxOpen, setIsClienteComboboxOpen] = useState(false);
   const [isNewClienteModalOpen, setIsNewClienteModalOpen] = useState(false);
   const [newClienteForm, setNewClienteForm] = useState({ nome: "", cpf: "", endereco: "", telefone: "" });
-
+  
+  const [selectedStatus, setSelectedStatus] = useState<string>("Todos");
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
@@ -121,47 +122,51 @@ export default function PedidosPageClient() {
         ano: String(selectedYear),
       });
 
-      // A API de produtos também será chamada sem paginação por enquanto,
-      // pois ela popula os dropdowns do formulário.
+      if (selectedStatus && selectedStatus !== "Todos") {
+        // Normaliza "Concluído" para o enum correto
+        const normalizedStatus = selectedStatus === "Concluído" ? "Concluido" : selectedStatus;
+        params.append("status", normalizedStatus);
+      }
+
       const [pedidosRes, produtosRes] = await Promise.all([
         fetch(`/api/pedidos?${params.toString()}`),
-        fetch('/api/produtos') 
+        fetch('/api/produtos')
       ]);
 
       if (!pedidosRes.ok || !produtosRes.ok) throw new Error("Falha ao buscar dados do servidor.");
-      
+
       const pedidosResponse = await pedidosRes.json();
-      const produtosResponse = await produtosRes.json(); // A resposta da API de produtos
-      
+      const produtosResponse = await produtosRes.json();
+
       setPedidos(pedidosResponse.data);
-      // CORREÇÃO AQUI: Pegamos apenas a propriedade 'data' da resposta dos produtos
-      setProdutosBase(produtosResponse.data); 
-      
-      // Atualiza a paginação dos PEDIDOS
+      setProdutosBase(produtosResponse.data);
       setCurrentPage(pedidosResponse.pagination.currentPage);
       setTotalPages(pedidosResponse.pagination.totalPages);
       setTotalItems(pedidosResponse.pagination.totalItems);
 
     } catch (error: any) {
       toast.error("Erro ao carregar dados", { description: error.message });
-      setPedidos([]); // Limpa os dados em caso de erro
+      setPedidos([]);
     } finally {
       setIsLoading(false);
     }
-}, [selectedMonth, selectedYear]);
+  }, [selectedMonth, selectedYear, selectedStatus]);
 
+  // Atualiza dados quando página muda
   useEffect(() => {
     fetchInitialData(currentPage);
   }, [currentPage, fetchInitialData]);
 
+  // Atualiza quando filtros mudam
   useEffect(() => {
     if (currentPage !== 1) {
       setCurrentPage(1);
     } else {
-      // Se já estiver na página 1, força a busca com os novos filtros
       fetchInitialData(1);
     }
-  }, [selectedMonth, selectedYear]);
+  }, [selectedMonth, selectedYear, selectedStatus, fetchInitialData]);
+
+
   
   async function handleUpdateStatus(pedidoId: string, newStatus: string) {
     const originalPedidos = [...pedidos];
@@ -368,6 +373,18 @@ export default function PedidosPageClient() {
                       ))}
                   </SelectContent>
               </Select>
+              <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                <SelectTrigger className="w-full sm:w-[160px]">
+                  <SelectValue placeholder="Filtrar por status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Todos">Todos</SelectItem>
+                  {STATUS_OPTIONS.map(status => (
+                    <SelectItem key={status} value={status}>{status}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
             
             <Dialog open={isCreateModalOpen} onOpenChange={setCreateModalOpen}>
               <DialogTrigger asChild>
@@ -516,7 +533,6 @@ export default function PedidosPageClient() {
         <CardContent>
           <Table>
             <TableHeader><TableRow>
-                <TableHead>Pedido</TableHead>
                 <TableHead>Data</TableHead>
                 <TableHead>Cliente</TableHead>
                 <TableHead>Status</TableHead>
@@ -529,7 +545,6 @@ export default function PedidosPageClient() {
                 pedidos.length > 0 ? (
                   pedidos.map(pedido => (
                     <TableRow key={pedido.id}>
-                        <TableCell className="font-mono text-xs">{pedido.id.substring(0,8)}...</TableCell>
                         <TableCell>{new Date(pedido.data).toLocaleDateString('pt-BR')}</TableCell>
                         <TableCell>{pedido.Cliente?.nome || 'Não identificado'}</TableCell>
                         <TableCell>

@@ -95,12 +95,14 @@ model Tamanho {
 
 model EntradaEstoque {
   id_entrada String   @id @default(cuid())
-  data       DateTime @default(now())
+  data       DateTime
   quantidade Int
   numeroNota String?
 
   varianteId String
   variante   VarianteProduto @relation(fields: [varianteId], references: [id_variante], onDelete: Restrict)
+
+  @@unique([numeroNota, varianteId], name: "entrada_unica_por_nota_e_variante")
 }
 
 model Pedido {

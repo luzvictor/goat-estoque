@@ -62,7 +62,7 @@ function KpiCard({ title, value, change, icon: Icon, format = (v) => v.toString(
               {isPositive ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
               {change.toFixed(1)}%
             </span>
-            em relação ao mês passado
+            em relação ao periodo anterior
           </p>
         )}
       </CardContent>
@@ -171,16 +171,16 @@ export default function DashboardClient() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <KpiCard title="Faturamento (este mês)" value={kpis?.faturamento.valor || 0} change={kpis?.faturamento.variacao} icon={DollarSign} format={formatCurrency} />
-        <KpiCard title="Total de Pedidos (mês)" value={kpis?.totalPedidos.valor || 0} icon={ShoppingCart} />
-        <KpiCard title="Ticket Médio (mês)" value={kpis?.ticketMedio.valor || 0} icon={PackageCheck} format={formatCurrency} />
+        <KpiCard title="Faturamento" value={kpis?.faturamento.valor || 0} change={kpis?.faturamento.variacao} icon={DollarSign} format={formatCurrency} />
+        <KpiCard title="Total de Pedidos" value={kpis?.totalPedidos.valor || 0} icon={ShoppingCart} />
+        <KpiCard title="Ticket Médio" value={kpis?.ticketMedio.valor || 0} icon={PackageCheck} format={formatCurrency} />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
         <Card className="col-span-4">
           <CardHeader>
             <CardTitle>Visão Geral de Vendas</CardTitle>
-            <CardDescription>Faturamento diário para o mês atual.</CardDescription>
+            <CardDescription>Faturamento diário para o período atual.</CardDescription>
           </CardHeader>
           <CardContent className="pl-2">
             <ResponsiveContainer width="100%" height={350}>

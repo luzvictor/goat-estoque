@@ -7,7 +7,7 @@ import { Prisma } from "@prisma/client";
 // GET: Lista todas as cores em ordem alfabética
 export async function GET() {
   try {
-    const cores = await prisma.Cor.findMany({
+    const cores = await prisma.cor.findMany({
       orderBy: {
         nome: 'asc',
       },
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "O nome da cor é obrigatório." }, { status: 400 });
     }
 
-    const novaCor = await prisma.Cor.create({
+    const novaCor = await prisma.cor.create({
       data: {
         nome: nome.trim(),
       },
