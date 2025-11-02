@@ -3,11 +3,8 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { Prisma, StatusPedido } from "@prisma/client";
+import { criarNotificacaoParaAdmins } from "@/lib/notifications";
 
-/**
- * GET: Lista todos os pedidos do sistema, incluindo detalhes dos produtos,
- * suas variantes, e o cliente associado.
- */
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -18,11 +15,9 @@ export async function GET(request: Request) {
 
     const mes = searchParams.get('mes');
     const ano = searchParams.get('ano');
-    const statusParam = searchParams.get('status'); // novo filtro de status
-
+    const statusParam = searchParams.get('status'); 
     let whereClause: any = {};
 
-    // --- FILTRO DE DATA ---
     if (mes && ano) {
       const mesNumero = parseInt(mes);
       const anoNumero = parseInt(ano);
@@ -33,14 +28,11 @@ export async function GET(request: Request) {
       }
     }
 
-    // --- FILTRO DE STATUS ---
     if (statusParam && statusParam !== "Todos") {
-      // Normaliza "Concluído" para "Concluido" caso seja necessário
       const normalizedStatus = statusParam === "Concluído" ? "Concluido" : statusParam;
       whereClause.status = normalizedStatus as StatusPedido;
     }
 
-    // --- QUERY PRINCIPAL COM TRANSAÇÃO ---
     const [pedidos, total] = await prisma.$transaction([
       prisma.pedido.findMany({
         where: whereClause,
@@ -79,10 +71,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Erro ao buscar pedidos." }, { status: 500 });
   }
 }
-/**
- * POST: Cria um novo pedido, verifica o estoque e dá baixa de forma transacional.
- * Recebe um corpo JSON: { clienteId?: string, produtos: [{ varianteId: string, quantidade: number }] }
- */
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -93,7 +82,7 @@ export async function POST(request: Request) {
     }
 
     const pedidoCriado = await prisma.$transaction(async (tx) => {
-      // Passo 1: Verificar estoque
+      // Passo 1: Verificar estoque (Sem alterações)
       for (const produto of produtos) {
         const varianteEmEstoque = await tx.varianteProduto.findUnique({
           where: { id_variante: produto.varianteId },
@@ -103,7 +92,7 @@ export async function POST(request: Request) {
         }
       }
 
-      // Passo 2: Criar o Pedido
+      // Passo 2: Criar o Pedido (Sem alterações)
       const pedido = await tx.pedido.create({
         data: {
           clienteId: clienteId || null,
@@ -116,45 +105,52 @@ export async function POST(request: Request) {
         },
       });
 
-      // Passo 3: Dar baixa no estoque
+      // Passo 3: Dar baixa no estoque E VERIFICAR ESTOQUE MÍNIMO
       for (const produto of produtos) {
-        await tx.varianteProduto.update({
+        // Atualiza o estoque e PAGA OS DADOS ATUALIZADOS
+        const varianteAtualizada = await tx.varianteProduto.update({
           where: { id_variante: produto.varianteId },
           data: {
             quantidade: {
               decrement: produto.quantidade,
             },
           },
+          // Inclui dados que precisamos para a notificação
+          include: {
+            produtoBase: { select: { nome: true, id_produto_base: true } },
+            cor: { select: { nome: true } },
+            tamanho: { select: { nome: true } },
+          }
         });
+
+        // =======================================================
+        // NOVA LÓGICA DE NOTIFICAÇÃO DE ESTOQUE BAIXO
+        // =======================================================
+        const { quantidade, estoqueMin, produtoBase, cor, tamanho, id_variante } = varianteAtualizada;
+        
+        // Compara a quantidade ATUAL com o estoque MÍNIMO (do schema)
+        if (quantidade <= estoqueMin) {
+          // Monta uma mensagem descritiva
+          const nomeVariante = `${produtoBase.nome} (${cor.nome}${tamanho ? ' - ' + tamanho.nome : ''})`;
+          const mensagem = `Estoque baixo para ${nomeVariante}. Restam apenas ${quantidade} unidades.`;
+          const link = `/produtos/${produtoBase.id_produto_base}?variante=${id_variante}`; // Link direto para o produto/variante
+
+          // Chama a função helper (passando o 'tx' da transação)
+          await criarNotificacaoParaAdmins({
+            tx,
+            mensagem,
+            link,
+          });
+        }
+        // =======================================================
+        // FIM DA NOVA LÓGICA
+        // =======================================================
       }
       
       // =======================================================
-      // PASSO 4: CRIAR E ENVIAR A NOTIFICAÇÃO (NOVA LÓGICA)
+      // PASSO 4: NOTIFICAÇÃO DE "PEDIDO CRIADO" (REMOVIDO)
       // =======================================================
-      
-      // Busca todos os usuários do sistema para notificá-los.
-      const usuariosDoSistema = await tx.usuario.findMany({
-        select: { id_usuario: true },
-      });
-
-      // Só cria a notificação se existirem usuários para notificar.
-      if (usuariosDoSistema.length > 0) {
-        // Cria a notificação principal.
-        const novaNotificacao = await tx.notificacao.create({
-          data: {
-            mensagem: `Novo pedido recebido! ID: #${pedido.id.substring(0, 8)}`,
-            link: `/pedidos/${pedido.id}`
-          },
-        });
-
-        // Cria as entradas na tabela de junção 'NotificacaoUsuario' para cada usuário.
-        await tx.notificacaoUsuario.createMany({
-          data: usuariosDoSistema.map(usuario => ({
-            usuarioId: usuario.id_usuario,
-            notificacaoId: novaNotificacao.id_notificacao,
-          })),
-        });
-      }
+      // (A lógica que estava aqui foi removida conforme sua solicitação)
 
       return pedido;
     });

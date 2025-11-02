@@ -1,17 +1,22 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import bcrypt from 'bcryptjs';
 
 export async function POST(req: Request) {
   const { email, senha } = await req.json();
 
   const usuario = await prisma.usuario.findUnique({ where: { email } });
 
-  if (!usuario || usuario.senha !== senha) {
+  if (!usuario) {
+  return NextResponse.json({ error: "Credenciais inválidas" }, { status: 401 });
+ }
+  const senhaValida = await bcrypt.compare(senha, usuario.senha);
+
+  if (!senhaValida) {
     return NextResponse.json({ error: "Credenciais inválidas" }, { status: 401 });
   }
 
-  // Cria cookie com ID do usuário (simples)
   (await cookies()).set("usuarioId", usuario.id_usuario, {
     httpOnly: true,
     path: "/",

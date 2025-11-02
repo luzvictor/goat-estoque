@@ -1,18 +1,22 @@
 // Em: src/app/api/logout/route.ts
+// CORREÇÃO: Seu código estava limpando 'session-token', mas o login definia 'usuarioId'.
+// Esta versão limpa o cookie correto.
 
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 
 export async function POST() {
-  try {
-    // Esta é a forma padrão de encerrar uma sessão baseada em cookies.
-    // Ele define o cookie de sessão com uma data de expiração no passado,
-    // fazendo com que o navegador o apague imediatamente.
-    cookies().set('session-token', '', { expires: new Date(0), path: '/' });
+try {
+const cookieStore = await cookies();
+    const cookieName = "usuarioId"; 
 
-    return NextResponse.json({ message: 'Logout realizado com sucesso.' });
-  } catch (error) {
-    console.error('Erro no logout:', error);
-    return NextResponse.json({ error: 'Não foi possível realizar o logout.' }, { status: 500 });
-  }
+    if (cookieStore.get(cookieName)) {
+        cookieStore.set(cookieName, '', { expires: new Date(0), path: '/' });
+    }
+
+return NextResponse.json({ message: 'Logout realizado com sucesso.' });
+} catch (error) {
+console.error('Erro no logout:', error);
+return NextResponse.json({ error: 'Não foi possível realizar o logout.' }, { status: 500 });
+}
 }
