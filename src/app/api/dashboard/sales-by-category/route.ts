@@ -4,10 +4,6 @@ import { NextRequest } from 'next/server';
 
 export async function GET(request: NextRequest) {
   try {
-    // É uma boa prática usar parâmetros de busca para filtrar, mesmo que não estejam no seu erro
-    // const { searchParams } = new URL(request.url);
-    // const from = searchParams.get('from');
-    // const to = searchParams.get('to');
     
     const resultado: { categoria: string, total: number }[] = await prisma.$queryRaw`
       SELECT
@@ -27,8 +23,6 @@ export async function GET(request: NextRequest) {
           total DESC;
     `;
     
-    // O Prisma retorna valores de soma como `bigint` por padrão no Node.js. 
-    // Mapear para `Number` garante a compatibilidade com o Recharts.
     const dadosFormatados = resultado.map(item => ({
       name: item.categoria,
       value: Number(item.total)

@@ -38,7 +38,6 @@ export async function POST(request: Request) {
     return NextResponse.json(novaMarca, { status: 201 });
   } catch (error: any) {
     console.error("Erro ao criar marca:", error);
-    // Trata o erro de constraint única (se a marca já existir)
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
       return NextResponse.json({ error: "Uma marca com este nome já existe." }, { status: 409 });
     }

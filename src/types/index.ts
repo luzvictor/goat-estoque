@@ -4,8 +4,8 @@ export type Cliente = {
   id_cliente: string;
   nome: string;
   cpf?: string | null;
-  endereco?: string | null; // <-- Campo adicionado
-  telefone?: string | null; // <-- Campo adicionado
+  endereco?: string | null;
+  telefone?: string | null; 
 };
 
 export type VarianteProduto = {
@@ -38,7 +38,6 @@ export type Pedido = {
     quantidade: number;
     variante: VarianteProduto;
   }[];
-  // A relação correta com Cliente
   Cliente: Cliente | null;
 };
 

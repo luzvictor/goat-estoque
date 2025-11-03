@@ -10,12 +10,9 @@ const { searchParams } = new URL(request.url);
 const from = searchParams.get('from');
 const to = searchParams.get('to');
 
-// Valida o filtro de data. Se não houver, assume um período padrão.
 const fromDate = from ? new Date(from) : undefined;
 const toDate = to ? new Date(to) : undefined;
 
-// 1. Calcular Faturamento Total e Total de Vendas no Período
-// Otimizado para somar diretamente no banco de dados.
 const resultadoFaturamento: { total: bigint; }[] = await prisma.$queryRaw`
 SELECT
 SUM(t_pedido_produto.quantidade * t_variante."valorVenda") as total
@@ -38,8 +35,6 @@ data: { gte: fromDate, lte: toDate },
 },
 });
 
-// 2. Encontrar produtos com estoque baixo
-// Corrigido para comparar as colunas 'quantidade' e 'estoqueMin'
 const produtosEstoqueBaixo = await prisma.$queryRaw`
 SELECT
 t_variante.quantidade,
@@ -61,8 +56,6 @@ t_variante.quantidade ASC
 LIMIT 5;
 `;
 
-// 3. Obter as vendas mais recentes
-// Adicionado filtro de data para consistência
 const vendasRecentes = await prisma.pedido.findMany({
 where: { status: 'Concluido', data: { gte: fromDate, lte: toDate } },
 take: 5,
@@ -87,7 +80,6 @@ Cliente: true
 }
 });
 
-// 4. Dados para o gráfico de barras (Faturamento por mês no último ano)
 const faturamentoMensal: { mes: string, total: bigint }[] = await prisma.$queryRaw`
 SELECT 
 TO_CHAR(DATE_TRUNC('month', t_pedido."data" AT TIME ZONE 'America/Sao_Paulo'), 'YYYY-MM') as "mes",
@@ -106,7 +98,6 @@ ORDER BY
 mes ASC;
 `;
 
-// Mapeia para converter BigInts em números
 const faturamentoMensalFormatado = faturamentoMensal.map(item => ({
 mes: item.mes,
 total: Number(item.total)

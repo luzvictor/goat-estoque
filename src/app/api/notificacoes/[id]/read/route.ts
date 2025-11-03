@@ -2,7 +2,6 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
-// O [id] aqui é o ID da *relação* NotificacaoUsuario
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   try {
     await prisma.notificacaoUsuario.update({

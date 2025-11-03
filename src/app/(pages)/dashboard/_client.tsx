@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, ElementType } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -9,8 +9,13 @@ import { ArrowUp, ArrowDown, DollarSign, ShoppingCart, AlertTriangle, Clock, Pac
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { DateRange } from 'react-day-picker';
 import { endOfDay, endOfMonth, startOfDay, startOfMonth } from 'date-fns';
+import { ContextHelp } from "@/components/ui/ContextHelp";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
-// --- Tipagens para os dados do Dashboard ---
 type KpiData = {
   faturamento: { valor: number; variacao: number };
   totalPedidos: { valor: number };
@@ -27,7 +32,6 @@ type AlertData = {
   pedidosPendentes: { id: string; data: string; Cliente: { nome: string } | null }[];
 };
 
-// NOVO: Tipagens para os dados dos gráficos
 type SalesData = { name: string; Vendas: number };
 type CategoryData = { name: string; value: number };
 
@@ -51,7 +55,19 @@ function KpiCard({ title, value, change, icon: Icon, format = (v) => v.toString(
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <CardTitle className="text-sm font-medium cursor-help">
+              {title}
+            </CardTitle>
+          </TooltipTrigger>
+          <TooltipContent>
+            {/* O conteúdo do tooltip é definido aqui, no componente pai */}
+            {title === "Faturamento Total" && <p>Valor total de vendas (faturamento bruto) no período selecionado.</p>}
+            {title === "Total de Pedidos" && <p>Número total de pedidos realizados no período.</p>}
+            {title === "Ticket Médio" && <p>Valor médio por pedido (Faturamento / Total de Pedidos).</p>}
+          </TooltipContent>
+        </Tooltip>
         <Icon className="h-4 w-4 text-muted-foreground" />
       </CardHeader>
       <CardContent>
@@ -70,13 +86,11 @@ function KpiCard({ title, value, change, icon: Icon, format = (v) => v.toString(
   );
 }
 
-// --- Componente Principal do Dashboard ---
 export default function DashboardClient() {
   const [kpis, setKpis] = useState<KpiData | null>(null);
   const [alerts, setAlerts] = useState<AlertData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // NOVO: Estados para os dados dos gráficos
   const [salesData, setSalesData] = useState<SalesData[]>([]);
   const [categoryData, setCategoryData] = useState<CategoryData[]>([]);
 
@@ -87,17 +101,13 @@ export default function DashboardClient() {
 
   const fetchDashboardData = useCallback(async (currentDate: DateRange | undefined) => {
     if (!currentDate?.from || !currentDate?.to) {
-      return; // Não faz nada se o período não estiver completo
+      return;
     }
     
     setIsLoading(true);
     try {
-      // --- LÓGICA DE DATA REFORÇADA ---
-      // Pega o início do primeiro dia do intervalo (ex: 18/06 às 00:00:00)
       const fromDate = startOfDay(currentDate.from);
       
-      // Pega o fim do último dia do intervalo (ex: 18/06 às 23:59:59)
-      // Se 'to' não existir (ex: selecionou só "hoje"), usa o mesmo dia de 'from'.
       const toDate = endOfDay(currentDate.to || currentDate.from);
 
       const fromISO = fromDate.toISOString();
@@ -142,7 +152,6 @@ export default function DashboardClient() {
 }));
 
   useEffect(() => {
-    // Esta função só roda no cliente (depois que o CSS é carregado)
     const style = getComputedStyle(document.body);
     setChartColors({
       primary: style.getPropertyValue('--primary').trim(),
@@ -164,39 +173,65 @@ export default function DashboardClient() {
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
       <div className="flex items-center justify-between space-y-2">
-        <h2 className="text-3xl font-bold tracking-tight text-accent">Dashboard</h2>
+        <h2 className="text-3xl font-bold tracking-tight text-accent flex items-center gap-2">
+          Dashboard
+          <ContextHelp
+            title="Dashboard Principal"
+            content="Este painel mostra uma visão geral do seu negócio no período selecionado. Todos os dados aqui são atualizados com base no filtro de data."
+          />
+        </h2>
         <div className="flex items-center space-x-2">
-          <DateRangePicker date={date} setDate={setDate} />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div> 
+                <DateRangePicker date={date} setDate={setDate} />
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Filtrar dados por período</p>
+            </TooltipContent>
+          </Tooltip>
           </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <KpiCard title="Faturamento" value={kpis?.faturamento.valor || 0} change={kpis?.faturamento.variacao} icon={DollarSign} format={formatCurrency} />
+        <KpiCard title="Faturamento Total" value={kpis?.faturamento.valor || 0} change={kpis?.faturamento.variacao} icon={DollarSign} format={formatCurrency} />
         <KpiCard title="Total de Pedidos" value={kpis?.totalPedidos.valor || 0} icon={ShoppingCart} />
         <KpiCard title="Ticket Médio" value={kpis?.ticketMedio.valor || 0} icon={PackageCheck} format={formatCurrency} />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-4">
-          <CardHeader>
-            <CardTitle>Visão Geral de Vendas</CardTitle>
-            <CardDescription>Faturamento diário para o período atual.</CardDescription>
-          </CardHeader>
+        <Card className="col-span-4 lg:col-span-3">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                Vendas por Categoria
+                <ContextHelp
+                  title="Faturamento por Categoria"
+                  content="Este gráfico de pizza mostra a participação de cada categoria no faturamento total do período (apenas de pedidos concluídos)."
+                />
+              </CardTitle>
+              <CardDescription>Distribuição de faturamento por categoria.</CardDescription>
+            </CardHeader>
           <CardContent className="pl-2">
             <ResponsiveContainer width="100%" height={350}>
-              {/* ATUALIZADO: Usa os dados do estado 'salesData' */}
               <BarChart data={salesData}>
                 <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
                 <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
                 <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `R$${value/1000}k`} />
-                <Tooltip cursor={{fill: 'transparent'}} contentStyle={{ background: 'hsl(var(--accent))', border: '1px solid hsl(var(--border))', borderRadius: '0.5rem' }} formatter={(value: number) => formatCurrency(value)}/>
+                <RechartsTooltip cursor={{fill: 'transparent'}} contentStyle={{ background: 'hsl(var(--accent))', border: '1px solid hsl(var(--border))', borderRadius: '0.5rem' }} formatter={(value: number) => formatCurrency(value)}/>
                 <Bar dataKey="Vendas" fill="var(--primary)" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
         <Card className="col-span-4 lg:col-span-3">
-            <CardHeader><CardTitle>Vendas por Categoria</CardTitle><CardDescription>Distribuição de faturamento por categoria.</CardDescription></CardHeader>
+            <CardHeader><CardTitle className="flex items-center gap-2">
+                Vendas por Categoria
+                <ContextHelp
+                  title="Faturamento por Categoria"
+                  content="Este gráfico de pizza mostra a participação de cada categoria no faturamento total do período (apenas de pedidos concluídos)."
+                />
+              </CardTitle><CardDescription>Distribuição de faturamento por categoria.</CardDescription></CardHeader>
             <CardContent>
             <ResponsiveContainer width="100%" height={350}>
                 <PieChart>
@@ -209,13 +244,13 @@ export default function DashboardClient() {
                         fill="#8884d8"
                         dataKey="value"
                         nameKey="name"
-                        label={(entry) => entry.name} // agora é string
+                        label={(entry) => entry.name} 
                     >
                         {mappedCategoryData.map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                     </Pie>
-                    <Tooltip
+                    <RechartsTooltip
                         contentStyle={{
                             background: 'hsl(var(--background))',
                             border: '1px solid hsl(var(--border))',
@@ -230,10 +265,15 @@ export default function DashboardClient() {
         </Card>
       </div>
       
-      {/* Seção 3: Listas de Ação */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
         <Card>
-          <CardHeader><CardTitle className="flex items-center gap-2"><AlertTriangle className="h-5 w-5 text-yellow-500"/>Alerta de Estoque Baixo</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-yellow-500"/>
+              Alerta de Estoque Baixo
+              <ContextHelp content="Lista de produtos cujo estoque atual está abaixo ou igual ao estoque mínimo definido no cadastro." />
+            </CardTitle>
+          </CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
@@ -258,7 +298,13 @@ export default function DashboardClient() {
           </CardContent>
         </Card>
         <Card>
-          <CardHeader><CardTitle className="flex items-center gap-2"><Clock className="h-5 w-5 text-blue-500"/>Últimos Pedidos Pendentes</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5 text-blue-500"/>
+              Últimos Pedidos Pendentes
+              <ContextHelp content="Exibe os pedidos mais recentes que ainda não foram enviados ou concluídos." />
+            </CardTitle>
+          </CardHeader>
           <CardContent>
               <Table>
                 <TableHeader>

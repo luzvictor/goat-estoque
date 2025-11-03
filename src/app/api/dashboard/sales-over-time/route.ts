@@ -17,9 +17,6 @@ export async function GET(request: Request) {
     const fromDate = new Date(from);
     const toDate = new Date(to);
 
-    // --- CORREÇÃO APLICADA AQUI ---
-    // A query SQL agora usa "AT TIME ZONE 'America/Sao_Paulo'" para converter o timestamp
-    // para o fuso horário do Brasil antes de extrair o dia.
     const resultado: { dia: string, total: number }[] = await prisma.$queryRaw`
       SELECT 
         TO_CHAR(p.data AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD') as dia,
@@ -32,9 +29,7 @@ export async function GET(request: Request) {
       ORDER BY dia ASC;
     `;
 
-    // Formata o resultado para o gráfico
     const dadosFormatados = resultado.map(item => ({
-        // Formata a data para DD/MM para exibição no gráfico
         name: new Date(item.dia + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
         Vendas: Number(item.total)
     }));

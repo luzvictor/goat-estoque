@@ -11,7 +11,7 @@ datasource db {
 enum StatusPedido {
   Pendente
   Enviado
-  Concluido // Nomes de enum não podem ter acentos
+  Concluido
   Cancelado
 }
 
@@ -29,7 +29,7 @@ model ProdutoBase {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  variantes VarianteProduto[] // Relacionamento com as variantes
+  variantes VarianteProduto[]
 }
 
 model VarianteProduto {
@@ -38,56 +38,52 @@ model VarianteProduto {
   corId           String
   cor             Cor       @relation(fields: [corId], references: [id])
 
-  tamanhoId       String?   // Opcional, como antes
+  tamanhoId       String?   
   tamanho         Tamanho?  @relation(fields: [tamanhoId], references: [id])
 
-  // Campos específicos da variante
   valorCusto Float
   valorVenda Float
   estoqueMin Int
-  quantidade Int // Estoque atual desta variante específica
-  sku        String? @unique // SKU único para a variante (recomendado)
-  imageUrl   String? // URL da imagem específica da variante (se houver)
+  quantidade Int
+  sku        String? @unique 
+  imageUrl   String?
 
-  // Relacionamento com ProdutoBase
   produtoBaseId String
   produtoBase   ProdutoBase @relation(fields: [produtoBaseId], references: [id_produto_base], onDelete: Cascade)
 
-  // Relacionamentos com Estoque e Pedidos
   entradas EntradaEstoque[]
   pedidos  PedidoProduto[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Garante que cor/tamanho sejam únicos para um mesmo produto base
   @@unique([produtoBaseId, corId, tamanhoId])
 }
 
 model Categoria {
   id    String @id @default(cuid())
-  nome  String @unique // O @unique impede nomes duplicados como "Adidas" e "Addias"
+  nome  String @unique
 
-  produtos ProdutoBase[] // Relação inversa
+  produtos ProdutoBase[] 
 }
 
 model Marca {
   id    String @id @default(cuid())
   nome  String @unique
 
-  produtos ProdutoBase[] // Relação inversa
+  produtos ProdutoBase[] 
 }
 
 model Cor {
   id    String @id @default(cuid())
-  nome  String @unique // Ex: "Azul Marinho", "Preto", "Branco"
+  nome  String @unique 
 
-  variantes VarianteProduto[] // Relação inversa
+  variantes VarianteProduto[] 
 }
 
 model Tamanho {
   id    String @id @default(cuid())
-  nome  String @unique // Ex: "P", "M", "G", "38", "40"
+  nome  String @unique 
 
   variantes VarianteProduto[] // Relação inversa
 }
@@ -109,12 +105,11 @@ model Pedido {
   id        String          @id @default(uuid())
   data      DateTime        @default(now())
   status    StatusPedido    @default(Pendente)
-  produtos  PedidoProduto[] // Relacionamento com PedidoProduto
+  produtos  PedidoProduto[] 
 
-  clienteId String? // Pode ser uma venda sem cliente cadastrado
+  clienteId String? 
  Cliente   Cliente? @relation(fields: [clienteId], references: [id_cliente], onDelete: SetNull)
 
-  // Relacionamento com o Usuario (quem criou o pedido no sistema)
   criadoPorUsuarioId String?
   CriadoPor Usuario? @relation(name: "PedidosCriados", fields: [criadoPorUsuarioId], references: [id_usuario], onDelete: SetNull)
 }
@@ -130,7 +125,6 @@ model PedidoProduto {
   quantidade Int
 }
 
-// Em: prisma/schema.prisma
 
 model Cliente {
   id_cliente String  @id @default(cuid())
@@ -139,7 +133,6 @@ model Cliente {
   endereco   String?
   telefone   String?
 
-  // Relacionamento: Um cliente pode ter vários pedidos
   pedidos Pedido[]
 
   createdAt DateTime @default(now())
@@ -158,7 +151,7 @@ model Usuario {
 
   role       Role    @default(USUARIO)
   pedidosCriados Pedido[] @relation(name: "PedidosCriados")
-  notificacoes NotificacaoUsuario[] // Relacionamento com NotificacaoUsuario
+  notificacoes NotificacaoUsuario[] 
 }
 
 model Notificacao {
@@ -167,12 +160,12 @@ model Notificacao {
   link           String?
   dataEnvio      DateTime @default(now())
 
-  usuarios NotificacaoUsuario[] // Relacionamento com NotificacaoUsuario
+  usuarios NotificacaoUsuario[] 
 }
 
 model NotificacaoUsuario {
   id          String    @id @default(cuid())
-  lida        Boolean   @default(false) // Se esta instância da notificação foi lida por este usuário
+  lida        Boolean   @default(false) 
   dataLeitura DateTime?
 
   usuarioId     String

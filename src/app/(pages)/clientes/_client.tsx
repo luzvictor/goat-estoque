@@ -12,6 +12,12 @@ import { Loader2, PlusCircle, Trash2, MoreHorizontal, Edit, Eye } from "lucide-r
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Cliente } from "@/types";
 import { toast } from "sonner";
+import { ContextHelp } from "@/components/ui/ContextHelp";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export default function ClientesPageClient() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -26,7 +32,6 @@ export default function ClientesPageClient() {
   const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false);
   const [clienteToDelete, setClienteToDelete] = useState<Cliente | null>(null);
   
-  // --- 2. NOVO ESTADO PARA O MODAL DE VISUALIZAÇÃO ---
   const [viewingCliente, setViewingCliente] = useState<Cliente | null>(null);
 
   const fetchClientes = useCallback(async () => {
@@ -127,7 +132,13 @@ export default function ClientesPageClient() {
         <CardHeader>
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <div>
-              <CardTitle className="text-2xl font-bold tracking-tight text-accent">Gerenciar Clientes</CardTitle>
+              <CardTitle className="text-2xl font-bold tracking-tight text-accent flex items-center gap-2">
+                Gerenciar Clientes
+                <ContextHelp
+                  title="Gestão de Clientes"
+                  content="Nesta página pode adicionar novos clientes, editar informações existentes, pesquisar por nome/CPF e remover clientes."
+                />
+              </CardTitle>
               <CardDescription>Adicione, edite e visualize todos os clientes.</CardDescription>
             </div>
             <div className="flex w-full md:w-auto items-center gap-2">
@@ -138,9 +149,16 @@ export default function ClientesPageClient() {
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full md:w-64"
               />
-              <Button onClick={() => openModal()} className="bg-accent text-accent-foreground hover:bg-accent/90 shrink-0 gap-1">
-                <PlusCircle className="h-4 w-4" /> Adicionar Cliente
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button onClick={() => openModal()} className="bg-accent text-accent-foreground hover:bg-accent/90 shrink-0 gap-1">
+                    <PlusCircle className="h-4 w-4" /> Adicionar Cliente
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Adicionar um novo cliente ao sistema.</p>
+                </TooltipContent>
+              </Tooltip>
             </div>
           </div>
         </CardHeader>
@@ -148,10 +166,33 @@ export default function ClientesPageClient() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead>CPF</TableHead>
-                <TableHead>Telefone</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
+                <TableHead>
+                  <Tooltip>
+                    <TooltipTrigger className="cursor-default">Nome</TooltipTrigger>
+                    <TooltipContent><p>Nome completo do cliente.</p></TooltipContent>
+                  </Tooltip>
+                </TableHead>
+
+                <TableHead>
+                  <Tooltip>
+                    <TooltipTrigger className="cursor-default">CPF</TooltipTrigger>
+                    <TooltipContent><p>CPF do cliente (opcional).</p></TooltipContent>
+                  </Tooltip>
+                </TableHead>
+                
+                <TableHead>
+                  <Tooltip>
+                    <TooltipTrigger className="cursor-default">Telefone</TooltipTrigger>
+                    <TooltipContent><p>Telefone de contato do cliente (opcional).</p></TooltipContent>
+                  </Tooltip>
+                </TableHead>
+
+                <TableHead className="text-right">
+                  <Tooltip>
+                    <TooltipTrigger className="cursor-default">Ações</TooltipTrigger>
+                    <TooltipContent><p>Visualizar, editar ou remover o cliente.</p></TooltipContent>
+                  </Tooltip>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -164,13 +205,20 @@ export default function ClientesPageClient() {
                     <TableCell>{cliente.cpf || 'N/A'}</TableCell>
                     <TableCell>{cliente.telefone || 'N/A'}</TableCell>
                     <TableCell className="text-right">
-                       <Popover>
-                        <PopoverTrigger asChild>
-                          <Button variant="ghost" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button>
-                        </PopoverTrigger>
+                      <Popover>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <PopoverTrigger asChild>
+                              <Button variant="ghost" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button>
+                            </PopoverTrigger>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Mais ações</p>
+                          </TooltipContent>
+                        </Tooltip>
+
                         <PopoverContent className="w-auto p-1">
-                           <div className="flex flex-col">
-                            {/* --- 3. NOVO BOTÃO DE VISUALIZAR --- */}
+                          <div className="flex flex-col">
                             <Button variant="ghost" size="sm" className="w-full justify-start gap-2" onClick={() => setViewingCliente(cliente)}>
                               <Eye className="h-4 w-4" /> Visualizar
                             </Button>
@@ -180,9 +228,9 @@ export default function ClientesPageClient() {
                             <Button variant="ghost" size="sm" className="w-full justify-start text-destructive hover:text-destructive" onClick={() => openDeleteAlert(cliente)}>
                               <Trash2 className="h-4 w-4" /> Remover
                             </Button>
-                           </div>
+                          </div>
                         </PopoverContent>
-                       </Popover>
+                      </Popover>
                     </TableCell>
                   </TableRow>
                 ))
@@ -194,11 +242,16 @@ export default function ClientesPageClient() {
         </CardContent>
       </Card>
 
-      {/* Modal de Criar/Editar */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingCliente ? "Editar Cliente" : "Adicionar Novo Cliente"}</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              {editingCliente ? "Editar Cliente" : "Adicionar Novo Cliente"}
+              <ContextHelp
+                title={editingCliente ? "Editar Cliente" : "Adicionar Cliente"}
+                content="Preencha as informações do cliente. O campo 'Nome' é obrigatório, os restantes são opcionais."
+              />
+            </DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
@@ -206,7 +259,10 @@ export default function ClientesPageClient() {
                   <Input id="nome" name="nome" value={clienteForm.nome} onChange={handleFormChange} className="col-span-3"/>
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="cpf" className="text-right">CPF</Label>
+                  <div className="flex justify-end items-center gap-1 text-right">
+                    <Label htmlFor="cpf">CPF</Label>
+                    <ContextHelp content="O CPF é opcional, mas útil para identificar o cliente em futuras compras." />
+                  </div>
                   <Input id="cpf" name="cpf" value={clienteForm.cpf || ''} onChange={handleFormChange} className="col-span-3"/>
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
@@ -227,11 +283,13 @@ export default function ClientesPageClient() {
         </DialogContent>
       </Dialog>
       
-      {/* --- 4. NOVO MODAL DE VISUALIZAÇÃO --- */}
       <Dialog open={!!viewingCliente} onOpenChange={(isOpen) => !isOpen && setViewingCliente(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Detalhes do Cliente</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              Detalhes do Cliente
+              <ContextHelp content="Estes são os dados de registo completos do cliente." />
+            </DialogTitle>
             <DialogDescription>Informações completas do cliente selecionado.</DialogDescription>
           </DialogHeader>
           {viewingCliente && (
@@ -251,7 +309,13 @@ export default function ClientesPageClient() {
       <AlertDialog open={isDeleteAlertOpen} onOpenChange={setIsDeleteAlertOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
+            <AlertDialogTitle className="flex items-center gap-2">
+              Você tem certeza?
+              <ContextHelp
+                title="Atenção!"
+                content="Se o cliente tiver pedidos associados, ele não poderá ser removido para manter a integridade do histórico de vendas."
+              />
+            </AlertDialogTitle>
             <AlertDialogDescription>
               A ação de excluir o cliente "{clienteToDelete?.nome}" não pode ser desfeita.
             </AlertDialogDescription>

@@ -13,14 +13,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
 
-  // Função para fazer logout do usuário
   async function handleLogout() {
     try {
       const response = await fetch('/api/logout', { method: 'POST' });
       if (response.ok) {
         toast.success("Você saiu com sucesso!");
         router.push('/login');
-        router.refresh(); // Limpa o cache e garante que o estado do usuário seja atualizado
+        router.refresh();
       } else {
         toast.error('Não foi possível sair. Tente novamente.');
       }
@@ -29,7 +28,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // Se a rota for a de login, renderiza apenas o conteúdo em um layout simples
   if (pathname === '/login') {
     return (
       <div className="flex min-h-screen items-center justify-center p-4 bg-muted">
@@ -38,7 +36,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Para todas as outras rotas, renderiza o layout principal
   return (
     <div className="grid h-screen w-full overflow-hidden md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
       
@@ -51,10 +48,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <MobileHeader />
 
           <div className="w-full flex-1">
-            {/* Espaço para um futuro campo de busca */}
           </div>
           
-          <div className='flex items-center gap-4'>
+          <div className='flex items-center gap-4 p-2'>
             <NotificationBell />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -66,12 +62,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <DropdownMenuContent align="end">
                 <DropdownMenuLabel>Minha Conta</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                {/* CORREÇÃO: Adicionado onClick para navegar e classe de cursor */}
                 <DropdownMenuItem onClick={() => router.push('/configuracoes')} className="cursor-pointer">
                   Configurações
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                {/* CORREÇÃO: Adicionado onClick para fazer logout e classe de cursor */}
                 <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
                   Sair
                 </DropdownMenuItem>

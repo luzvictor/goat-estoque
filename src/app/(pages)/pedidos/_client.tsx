@@ -15,8 +15,13 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PedidoDetalhesModal } from "@/components/modals/PedidoDetalhesModal";
 import { cn } from "@/lib/utils";
+import { ContextHelp } from "@/components/ui/ContextHelp";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
-// --- CORREÇÃO: Importando as tipagens centralizadas ---
 import { Cliente, Pedido, ProdutoBase, VarianteProduto, NewOrderItem } from "@/types";
 import { toast } from "sonner";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
@@ -32,7 +37,6 @@ const MESES = [
 const ANOS = [new Date().getFullYear(), new Date().getFullYear() - 1, new Date().getFullYear() - 2];
 
 export default function PedidosPageClient() {
-  // --- Estados do Componente ---
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [produtosBase, setProdutosBase] = useState<ProdutoBase[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -43,18 +47,14 @@ export default function PedidosPageClient() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   
-  // Estados para o formulário de novo pedido
   const [newOrderItems, setNewOrderItems] = useState<NewOrderItem[]>([]);
   const [selectedVariant, setSelectedVariant] = useState<string>("");
   const [itemQuantity, setItemQuantity] = useState<number>(1);
   
-  // Estados para modais de confirmação e detalhes
   const [isAlertOpen, setIsAlertOpen] = useState(false);
-  // CORREÇÃO: O estado agora guarda o objeto Pedido completo
   const [orderToDelete, setOrderToDelete] = useState<Pedido | null>(null);
   const [viewingOrderId, setViewingOrderId] = useState<string | null>(null);
 
-  // --- Estados para gestão de clientes ---
   const [clienteSearch, setClienteSearch] = useState("");
   const [clienteResults, setClienteResults] = useState<Cliente[]>([]);
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
@@ -92,9 +92,6 @@ export default function PedidosPageClient() {
   }, [productSearch, produtosDisponiveis]);
 
 
-  // --- Funções de API ---
-
-  // Busca de clientes com debounce
   useEffect(() => {
     const fetchClientes = async () => {
       if (clienteSearch.length < 2) {
@@ -123,7 +120,6 @@ export default function PedidosPageClient() {
       });
 
       if (selectedStatus && selectedStatus !== "Todos") {
-        // Normaliza "Concluído" para o enum correto
         const normalizedStatus = selectedStatus === "Concluído" ? "Concluido" : selectedStatus;
         params.append("status", normalizedStatus);
       }
@@ -152,12 +148,10 @@ export default function PedidosPageClient() {
     }
   }, [selectedMonth, selectedYear, selectedStatus]);
 
-  // Atualiza dados quando página muda
   useEffect(() => {
     fetchInitialData(currentPage);
   }, [currentPage, fetchInitialData]);
 
-  // Atualiza quando filtros mudam
   useEffect(() => {
     if (currentPage !== 1) {
       setCurrentPage(1);
@@ -193,7 +187,6 @@ export default function PedidosPageClient() {
     if (!orderToDelete) return;
     setIsSubmitting(true);
     try {
-      // CORREÇÃO: Acessa o ID a partir do objeto guardado no estado
       const response = await fetch(`/api/pedidos/${orderToDelete.id}`, { method: 'DELETE' });
       if (!response.ok) {
         const errorData = await response.json();
@@ -204,7 +197,6 @@ export default function PedidosPageClient() {
       await fetchInitialData(newPage);
     } catch (error: any) {
       toast.error("Falha ao remover pedido", { description: error.message });
-      // A re-busca em caso de sucesso já atualiza a lista, não precisa reverter aqui.
     } finally {
       setOrderToDelete(null);
       setIsAlertOpen(false);
@@ -212,7 +204,6 @@ export default function PedidosPageClient() {
     }
   }
   
-  // --- Funções do Formulário de Novo Pedido ---
 
   const resetCreateOrderModal = () => {
     setNewOrderItems([]);
@@ -280,7 +271,6 @@ export default function PedidosPageClient() {
       if (response.ok) {
         toast.success("Pedido criado com sucesso!");
         setCreateModalOpen(false);
-        // Após criar, busca os dados da página 1 do mês/ano selecionado
         await fetchInitialData(1); 
       }
     } catch (error: any) {
@@ -313,7 +303,6 @@ export default function PedidosPageClient() {
     }
   }
 
-  // --- Funções Auxiliares de Renderização ---
 
   const totalPedido = useMemo(() => newOrderItems.reduce((acc, item) => acc + (item.quantidade * item.precoUnitario), 0), [newOrderItems]);
   
@@ -334,7 +323,6 @@ export default function PedidosPageClient() {
   const produto = produtosDisponiveis.find(p => p.id_variante === selectedVariant);
   if (!produto) return "";
 
-  // Aqui acessamos a propriedade 'nome' de cada objeto
   const marcaNome = produto.marca?.nome ?? "";
   const corNome = produto.cor?.nome ?? "";
   const tamanhoNome = produto.tamanho?.nome ?? "Único";
@@ -342,59 +330,101 @@ export default function PedidosPageClient() {
   return `${marcaNome} - ${produto.nome} (${corNome}, ${tamanhoNome})`;
 }, [selectedVariant, produtosDisponiveis]);
 
-  // --- Renderização do Componente ---
   return (
     <div className="flex flex-col gap-4">
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-2xl font-bold tracking-tight text-accent">Gerenciar Pedidos</CardTitle>
+              <CardTitle className="text-2xl font-bold tracking-tight text-accent flex items-center gap-2">
+                Gerenciar Pedidos
+                <ContextHelp
+                  title="Gerenciamento de Pedidos"
+                  content="Esta página exibe todos os pedidos do sistema. Use os filtros para refinar sua busca e o botão 'Novo Pedido' para criar uma nova venda."
+                />
+              </CardTitle>
               <CardDescription>Crie novos pedidos e visualize o histórico de vendas.</CardDescription>
             </div>
             <div className="flex flex-col sm:flex-row w-full md:w-auto items-center gap-2">
-              <Select value={String(selectedMonth)} onValueChange={(value) => setSelectedMonth(Number(value))}>
-                  <SelectTrigger className="w-full sm:w-[180px]">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Select value={String(selectedMonth)} onValueChange={(value) => setSelectedMonth(Number(value))}>
+                    <SelectTrigger className="w-full sm:w-[180px]">
                       <SelectValue placeholder="Selecione o Mês" />
-                  </SelectTrigger>
-                  <SelectContent>
+                    </SelectTrigger>
+                    <SelectContent>
                       {MESES.map(mes => (
-                          <SelectItem key={mes.valor} value={String(mes.valor)}>{mes.nome}</SelectItem>
+                        <SelectItem key={mes.valor} value={String(mes.valor)}>{mes.nome}</SelectItem>
                       ))}
-                  </SelectContent>
-              </Select>
-              <Select value={String(selectedYear)} onValueChange={(value) => setSelectedYear(Number(value))}>
-                  <SelectTrigger className="w-full sm:w-[120px]">
+                    </SelectContent>
+                  </Select>
+                </TooltipTrigger>
+                <TooltipContent><p>Filtrar por Mês</p></TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Select value={String(selectedYear)} onValueChange={(value) => setSelectedYear(Number(value))}>
+                    <SelectTrigger className="w-full sm:w-[120px]">
                       <SelectValue placeholder="Selecione o Ano" />
-                  </SelectTrigger>
-                  <SelectContent>
+                    </SelectTrigger>
+                    <SelectContent>
                       {ANOS.map(ano => (
-                          <SelectItem key={ano} value={String(ano)}>{ano}</SelectItem>
+                        <SelectItem key={ano} value={String(ano)}>{ano}</SelectItem>
                       ))}
-                  </SelectContent>
-              </Select>
-              <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                <SelectTrigger className="w-full sm:w-[160px]">
-                  <SelectValue placeholder="Filtrar por status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Todos">Todos</SelectItem>
-                  {STATUS_OPTIONS.map(status => (
-                    <SelectItem key={status} value={status}>{status}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                    </SelectContent>
+                  </Select>
+                </TooltipTrigger>
+                <TooltipContent><p>Filtrar por Ano</p></TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                    <SelectTrigger className="w-full sm:w-[160px]">
+                      <SelectValue placeholder="Filtrar por status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Todos">Todos</SelectItem>
+                      {STATUS_OPTIONS.map(status => (
+                        <SelectItem key={status} value={status}>{status}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </TooltipTrigger>
+                <TooltipContent><p>Filtrar por Status</p></TooltipContent>
+              </Tooltip>
 
             
             <Dialog open={isCreateModalOpen} onOpenChange={setCreateModalOpen}>
-              <DialogTrigger asChild>
-                <Button className="bg-accent text-accent-foreground hover:bg-accent/90 gap-1"><PlusCircle className="h-4 w-4" /> Novo Pedido</Button>
-              </DialogTrigger>
+              <Tooltip>
+                  <TooltipTrigger asChild>
+                    <DialogTrigger asChild>
+                      <Button className="bg-accent text-accent-foreground hover:bg-accent/90 gap-1"><PlusCircle className="h-4 w-4" /> Novo Pedido</Button>
+                    </DialogTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent><p>Criar um novo pedido de venda.</p></TooltipContent>
+                </Tooltip>
               <DialogContent className="max-w-4xl">
-                <DialogHeader><DialogTitle>Criar Novo Pedido</DialogTitle></DialogHeader>
+                <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                      Criar Novo Pedido
+                      <ContextHelp
+                        title="Criação de Pedido"
+                        content={
+                          <ul className="list-disc pl-4 space-y-1 text-sm">
+                            <li>Selecione um cliente existente ou cadastre um novo.</li>
+                            <li>Busque e adicione produtos ao pedido.</li>
+                            <li>O estoque será abatido automaticamente ao finalizar.</li>
+                          </ul>
+                        }
+                      />
+                    </DialogTitle>
+                  </DialogHeader>
                 
                 <div className="pt-4 space-y-2">
-                  <Label>Cliente (Opcional)</Label>
+                  <Label className="flex items-center gap-1.5">
+                      Cliente (Opcional)
+                      <ContextHelp content="Busque o cliente por nome ou CPF. Se não for encontrado, você pode cadastrá-lo rapidamente." />
+                  </Label>
                   {selectedCliente ? (
                     <div className="flex items-center justify-between p-3 border rounded-md bg-muted">
                       <p className="font-medium">{selectedCliente.nome} {selectedCliente.cpf ? `- ${selectedCliente.cpf}` : ''}</p>
@@ -493,7 +523,10 @@ export default function PedidosPageClient() {
                     <Button onClick={handleAddItemToOrder} className="w-full">Adicionar Item</Button>
                   </div>
                   <div className="space-y-2">
-                    <h3 className="font-semibold">Itens no Pedido</h3>
+                    <h3 className="font-semibold flex items-center gap-1.5">
+                        Itens no Pedido
+                        <ContextHelp content="Lista de itens adicionados a este pedido. O valor total é calculado automaticamente." />
+                      </h3>
                     <div className="border rounded-lg p-2 h-64 overflow-y-auto">
                       {newOrderItems.length === 0 ? ( <p className="text-sm text-muted-foreground text-center pt-4">Nenhum item.</p> ) : (
                         <div className="space-y-2">
@@ -505,7 +538,12 @@ export default function PedidosPageClient() {
                               </div>
                               <div className="flex items-center gap-2">
                                 <p className="font-semibold">{formatCurrency(item.quantidade * item.precoUnitario)}</p>
-                                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleRemoveItem(item.varianteId)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleRemoveItem(item.varianteId)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent><p>Remover item do pedido</p></TooltipContent>
+                                  </Tooltip>
                               </div>
                             </div>
                           ))}
@@ -533,12 +571,42 @@ export default function PedidosPageClient() {
         <CardContent>
           <Table>
             <TableHeader><TableRow>
-                <TableHead>Data</TableHead>
-                <TableHead>Cliente</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Itens</TableHead>
-                <TableHead className="text-right">Valor Total</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
+                <TableHead>
+                  <Tooltip>
+                    <TooltipTrigger className="cursor-default">Data</TooltipTrigger>
+                    <TooltipContent><p>Data da criação do pedido.</p></TooltipContent>
+                  </Tooltip>
+                </TableHead>
+                <TableHead>
+                  <Tooltip>
+                    <TooltipTrigger className="cursor-default">Cliente</TooltipTrigger>
+                    <TooltipContent><p>Cliente associado ao pedido.</p></TooltipContent>
+                  </Tooltip>
+                </TableHead>
+                <TableHead>
+                  <Tooltip>
+                    <TooltipTrigger className="cursor-default">Status</TooltipTrigger>
+                    <TooltipContent><p>Status atual do pedido.</p></TooltipContent>
+                  </Tooltip>
+                </TableHead>
+                <TableHead>
+                  <Tooltip>
+                    <TooltipTrigger className="cursor-default">Itens</TooltipTrigger>
+                    <TooltipContent><p>Quantidade total de itens no pedido.</p></TooltipContent>
+                  </Tooltip>
+                </TableHead>
+                <TableHead className="text-right">
+                  <Tooltip>
+                    <TooltipTrigger className="cursor-default">Valor Total</TooltipTrigger>
+                    <TooltipContent><p>Valor total do pedido.</p></TooltipContent>
+                  </Tooltip>
+                </TableHead>
+                <TableHead className="text-right">
+                  <Tooltip>
+                    <TooltipTrigger className="cursor-default">Ações</TooltipTrigger>
+                    <TooltipContent><p>Ações rápidas para o pedido.</p></TooltipContent>
+                  </Tooltip>
+                </TableHead>
             </TableRow></TableHeader>
             <TableBody>
                 {isLoading ? (<TableRow><TableCell colSpan={7} className="text-center h-24">Carregando...</TableCell></TableRow>) :
@@ -548,13 +616,15 @@ export default function PedidosPageClient() {
                         <TableCell>{new Date(pedido.data).toLocaleDateString('pt-BR')}</TableCell>
                         <TableCell>{pedido.Cliente?.nome || 'Não identificado'}</TableCell>
                         <TableCell>
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Badge variant={getStatusVariant(pedido.status)} className="cursor-pointer hover:opacity-80">
-                                {pedido.status}
-                              </Badge>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-2" align="start">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <Badge variant={getStatusVariant(pedido.status)} className="cursor-pointer hover:opacity-80">
+                                    {pedido.status}
+                                  </Badge>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-2" align="start">
                               <div className="flex flex-col gap-1">
                                 <p className="text-sm font-medium p-2">Alterar status para:</p>
                                 {STATUS_OPTIONS.map(statusOption => (
@@ -566,29 +636,47 @@ export default function PedidosPageClient() {
                                 ))}
                               </div>
                             </PopoverContent>
-                          </Popover>
+                              </Popover>
+                            </TooltipTrigger>
+                            <TooltipContent><p>Clique para alterar o status</p></TooltipContent>
+                          </Tooltip>
                         </TableCell>
-                        <TableCell>{pedido.produtos.reduce((acc, p) => acc + p.quantidade, 0)}</TableCell>
+                        <TableCell>{pedido.produtos.reduce((acc, p) => acc + p.quantidade, 0)}</TableCell>  
                         <TableCell className="text-right">{formatCurrency(pedido.produtos.reduce((acc, item) => acc + item.variante.valorVenda * item.quantidade, 0))}</TableCell>
                         <TableCell className="text-right">
-                           <Popover>
-                            <PopoverTrigger asChild>
-                              <Button variant="ghost" className="h-8 w-8 p-0">
-                                <span className="sr-only">Abrir menu de ações</span>
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-2" align="end">
-                               <div className="flex flex-col gap-1">
-                                  <Button variant="ghost" size="sm" className="w-full justify-start" onClick={() => setViewingOrderId(pedido.id)}>
-                                    Visualizar
+                           <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <Button variant="ghost" className="h-8 w-8 p-0">
+                                    <span className="sr-only">Abrir menu de ações</span>
+                                    <MoreHorizontal className="h-4 w-4" />
                                   </Button>
-                                  <Button variant="ghost" size="sm" className="w-full justify-start text-destructive hover:text-destructive" onClick={() => openDeleteAlert(pedido)}>
-                                    <Trash2 className="h-4 w-4"/>Remover
-                                  </Button>
-                               </div>
-                            </PopoverContent>
-                          </Popover>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-2" align="end">
+                                    <div className="flex flex-col gap-1">
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Button variant="ghost" size="sm" className="w-full justify-start" onClick={() => setViewingOrderId(pedido.id)}>
+                                            Visualizar
+                                          </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="left"><p>Ver detalhes completos do pedido.</p></TooltipContent>
+                                      </Tooltip>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Button variant="ghost" size="sm" className="w-full justify-start text-destructive hover:text-destructive" onClick={() => openDeleteAlert(pedido)}>
+                                            <Trash2 className="h-4 w-4"/>Remover
+                                          </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="left"><p>Remover este pedido (estorno de estoque).</p></TooltipContent>
+                                      </Tooltip>
+                                    </div>
+                                </PopoverContent>
+                              </Popover>
+                            </TooltipTrigger>
+                            <TooltipContent><p>Mais ações</p></TooltipContent>
+                          </Tooltip>
                         </TableCell>
                     </TableRow>
                   ))
@@ -612,7 +700,6 @@ export default function PedidosPageClient() {
                 />
               </PaginationItem>
               
-              {/* Lógica de renderização de links de página pode ser adicionada aqui */}
               <PaginationItem>
                 <PaginationLink isActive>{currentPage}</PaginationLink>
               </PaginationItem>
@@ -632,7 +719,13 @@ export default function PedidosPageClient() {
       <Dialog open={isNewClienteModalOpen} onOpenChange={setIsNewClienteModalOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Cadastrar Novo Cliente</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              Cadastrar Novo Cliente
+              <ContextHelp
+                title="Cadastro Rápido"
+                content="Cadastre um novo cliente. Apenas o nome é obrigatório para salvar."
+              />
+            </DialogTitle>
             <DialogDescription>Preencha os dados para criar um novo cliente.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -666,7 +759,13 @@ export default function PedidosPageClient() {
       <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
+            <AlertDialogTitle className="flex items-center gap-2">
+              Você tem certeza?
+              <ContextHelp
+                title="Ação Irreversível"
+                content="Se o pedido for 'Pendente', o estoque dos itens será devolvido. Se for 'Enviado', será marcado como 'Cancelado' e o estoque também será devolvido."
+              />
+            </AlertDialogTitle>
             <AlertDialogDescription>
               Esta ação não pode ser desfeita. O pedido será permanentemente removido e o estoque dos produtos será revertido.
             </AlertDialogDescription>
@@ -684,9 +783,7 @@ export default function PedidosPageClient() {
         pedidoId={viewingOrderId}
         onClose={() => setViewingOrderId(null)}
         onStatusChange={(pedidoId, newStatus) => {
-          // A função onStatusChange no modal agora pode nos devolver o ID, simplificando a lógica
           handleUpdateStatus(pedidoId, newStatus);
-          // Também atualizamos a lista principal para refletir a mudança
           setPedidos(pedidos.map(p => p.id === pedidoId ? { ...p, status: newStatus } : p));
         }}
       />

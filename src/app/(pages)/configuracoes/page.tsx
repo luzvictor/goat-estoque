@@ -5,8 +5,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AttributeManager } from "./_components/AttributeManager";
 import { Loader2 } from "lucide-react";
+import { ContextHelp } from "@/components/ui/ContextHelp";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
-// Tipagem genérica para os itens (Marca, Categoria, Cor, Tamanho)
+
 type AttributeItem = {
   id: string;
   nome: string;
@@ -19,7 +25,6 @@ export default function ConfiguracoesPage() {
   const [tamanhos, setTamanhos] = useState<AttributeItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Função genérica para buscar dados de qualquer endpoint
   const fetchData = async (
     endpoint: string,
     setter: React.Dispatch<React.SetStateAction<AttributeItem[]>>
@@ -31,14 +36,11 @@ export default function ConfiguracoesPage() {
       setter(data);
     } catch (error: any) {
       console.error("Erro ao carregar dados de", endpoint, error.message);
-      // O feedback de erro será tratado pelo `toast` no `AttributeManager` se a ação falhar
     }
   };
 
-  // Função para recarregar todos os dados
   const fetchAllData = async () => {
     setIsLoading(true);
-    // Promise.all executa todas as buscas em paralelo para mais performance
     await Promise.all([
       fetchData("/api/marcas", setMarcas),
       fetchData("/api/categorias", setCategorias),
@@ -48,19 +50,20 @@ export default function ConfiguracoesPage() {
     setIsLoading(false);
   };
 
-  // Efeito para buscar os dados iniciais quando o componente é montado
   useEffect(() => {
     fetchAllData();
   }, []);
 
   return (
-    // O componente <Toaster /> foi removido daqui para evitar duplicidade.
-    // Ele deve existir apenas uma vez, no seu arquivo de layout principal (app/layout.tsx).
     <div className="flex flex-col gap-4">
       <Card>
         <CardHeader>
-          <CardTitle className="text-2xl font-bold tracking-tight text-accent">
+          <CardTitle className="text-2xl font-bold tracking-tight text-accent flex items-center gap-2">
             Configurações do Sistema
+            <ContextHelp
+              title="Sobre as Configurações"
+              content="Esta página permite gerir os 'atributos' dos seus produtos. Marcas, categorias, cores e tamanhos são usados para criar e organizar o seu inventário."
+            />
           </CardTitle>
           <CardDescription>
             Gerencie os atributos e opções disponíveis para seus produtos.
@@ -69,10 +72,41 @@ export default function ConfiguracoesPage() {
         <CardContent>
           <Tabs defaultValue="marcas" className="w-full">
             <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="marcas">Marcas</TabsTrigger>
-              <TabsTrigger value="categorias">Categorias</TabsTrigger>
-              <TabsTrigger value="cores">Cores</TabsTrigger>
-              <TabsTrigger value="tamanhos">Tamanhos</TabsTrigger>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <TabsTrigger value="marcas">Marcas</TabsTrigger>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Gerir as marcas dos seus produtos (ex: Nike, Adidas).</p>
+                </TooltipContent>
+              </Tooltip>
+              
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <TabsTrigger value="categorias">Categorias</TabsTrigger>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Gerir as categorias dos produtos (ex: Camisetas, Tênis).</p>
+                </TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <TabsTrigger value="cores">Cores</TabsTrigger>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Gerir as cores disponíveis (ex: Azul, Preto, Branco).</p>
+                </TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <TabsTrigger value="tamanhos">Tamanhos</TabsTrigger>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Gerir os tamanhos disponíveis (ex: P, M, G, 40, 42).</p>
+                </TooltipContent>
+              </Tooltip>
             </TabsList>
 
             {isLoading ? (
@@ -87,7 +121,7 @@ export default function ConfiguracoesPage() {
                     itemLabel="Marca"
                     items={marcas}
                     apiEndpoint="/api/marcas"
-                    onUpdate={fetchAllData} // Passa a função para recarregar os dados
+                    onUpdate={fetchAllData}
                   />
                 </TabsContent>
                 <TabsContent value="categorias">

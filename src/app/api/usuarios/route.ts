@@ -3,6 +3,8 @@ import { getUsuarioDaSessao } from "@/lib/session";
 import { Role } from "@prisma/client";
 import { NextResponse } from "next/server";
 import bcrypt from 'bcryptjs';
+import { userCreationSchema } from "@/lib/validations"; 
+import { ZodError } from "zod";
 
 export async function GET(request: Request) {
     const usuarioLogado = await getUsuarioDaSessao();
@@ -32,42 +34,48 @@ export async function GET(request: Request) {
 
 
 export async function POST(request: Request) {
-    const usuarioLogado = await getUsuarioDaSessao();
-    if (usuarioLogado?.role !== Role.ADM) {
-         return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 });
+  const usuarioLogado = await getUsuarioDaSessao();
+  if (usuarioLogado?.role !== Role.ADM) {
+    return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 });
+  }
+
+  try {
+    const body = await request.json();
+
+    const validation = userCreationSchema.safeParse(body);
+
+    if (!validation.success) {
+      const firstError = validation.error.errors[0];
+      return NextResponse.json({ error: firstError.message }, { status: 400 });
     }
 
-    try {
-        const { nome, email, senha, role } = await request.json();
+    const { nome, email, senha, role } = validation.data;
 
-        if (!nome || !email || !senha || !role) {
-            return NextResponse.json({ error: "Todos os campos (nome, email, senha, role) são obrigatórios." }, { status: 400 });
-        }
-
-        const emailExiste = await prisma.usuario.findUnique({ where: { email } });
-        if (emailExiste) {
-            return NextResponse.json({ error: "Este email já está em uso." }, { status: 409 }); // 409 Conflict
-        }
-        
-        if (role !== Role.ADM && role !== Role.USUARIO) {
-             return NextResponse.json({ error: "Role inválida. Use 'ADM' ou 'USUARIO'." }, { status: 400 });
-        }
-        const hashSenha = await bcrypt.hash(senha, 10);
-
-        const novoUsuario = await prisma.usuario.create({
-            data: {
-                nome,
-                email,
-                senha: hashSenha,
-                role,
-            }
-        });
-
-        const { senha: _, ...usuarioSemSenha } = novoUsuario;
-        return NextResponse.json(usuarioSemSenha, { status: 201 });
-
-    } catch (error) {
-        console.error("Erro ao criar usuário:", error);
-        return NextResponse.json({ error: "Erro interno ao criar usuário." }, { status: 500 });
+    const emailExiste = await prisma.usuario.findUnique({ where: { email } });
+    if (emailExiste) {
+      return NextResponse.json({ error: "Este email já está em uso." }, { status: 409 }); // 409 Conflict
     }
+
+    
+    const hashSenha = await bcrypt.hash(senha, 10);
+
+    const novoUsuario = await prisma.usuario.create({
+      data: {
+        nome,
+        email,
+        senha: hashSenha,
+        role,
+      }
+    });
+
+    const { senha: _, ...usuarioSemSenha } = novoUsuario;
+    return NextResponse.json(usuarioSemSenha, { status: 201 });
+
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return NextResponse.json({ error: error.errors[0].message }, { status: 400 });
+    }
+    console.error("Erro ao criar usuário:", error);
+    return NextResponse.json({ error: "Erro interno ao criar usuário." }, { status: 500 });
+  }
 }

@@ -127,7 +127,7 @@ export default function Header() {
         </div>
       </header>
   
-      {/* Menu Mobile (fora do header) */}
+      {/* Menu Mobile*/}
       {mobileMenuAberto && (
         <div className="md:hidden bg-[#111] text-white px-6 py-4 space-y-2 border-b border-gray-800 pt-16">
           <Link

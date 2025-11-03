@@ -38,8 +38,13 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
+import { ContextHelp } from "@/components/ui/ContextHelp";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
-// Funções de formatação e parse de moeda
 const formatCurrency = (value: string | number): string => {
   if (typeof value === 'number') value = value.toFixed(2);
   let cleaned = String(value).replace(/\D/g, "");
@@ -55,7 +60,6 @@ const parseCurrency = (value: string | number): number => {
   return parseFloat(value.replace(/\./g, "").replace(",", "."));
 };
 
-// --- Tipagens ---
 type Attribute = { id: string; nome: string; };
 type VarianteProduto = {
   id_variante: string;
@@ -108,10 +112,8 @@ export default function ProdutosPageClient() {
   const [entryForm, setEntryForm] = useState({ varianteId: "", quantidade: 0, numeroNota: "", data: new Date().toISOString().split("T")[0], marcaId: "",  });
   const [variantToDelete, setVariantToDelete] = useState<ProdutoDisplay | null>(null);
 
-  // controla qual DropdownMenu está aberto (por id da variante)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
-  // --- FUNÇÕES DE API ---
   const fetchAllData = useCallback(async (page = 1) => {
     setIsLoading(true);
     try {
@@ -146,7 +148,6 @@ export default function ProdutosPageClient() {
       setIsLoading(false);
     }
   }, [searchTerm]);
-  // Dentro do seu componente _client.tsx
 
 const handleRegisterEntry = async () => {
   if (!entryForm.varianteId || !entryForm.marcaId || entryForm.quantidade <= 0 || !entryForm.numeroNota) {
@@ -311,10 +312,8 @@ const handleRegisterEntry = async () => {
   }
 }, [isEntryModalOpen, displayProdutos]);
 
-  // handlers que fecham o menu antes de abrir o modal/alerta
   const handleEditFromMenu = (produto: ProdutoDisplay) => {
     setOpenMenuId(null);
-    // garante que o dropdown feche antes do dialog abrir
     setTimeout(() => {
       setEditingItem(produto);
       setEditModalOpen(true);
@@ -334,23 +333,47 @@ const handleRegisterEntry = async () => {
         <CardHeader>
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             <div>
-              <CardTitle className="text-2xl font-bold tracking-tight text-accent">Gerenciar Produtos</CardTitle>
+              <CardTitle className="text-2xl font-bold tracking-tight text-accent flex items-center gap-2">
+                Gerenciar Produtos
+                <ContextHelp
+                  title="Gerenciamento de Produtos"
+                  content="Esta página lista todas as variantes de produtos. Cada linha representa uma combinação única (ex: Camisa Azul P). Use os botões para adicionar novos produtos, registrar entradas ou editar variantes existentes."
+                />
+              </CardTitle>
               <CardDescription>Adicione, edite e visualize todos os produtos e suas variantes.</CardDescription>
             </div>
             <div className="flex w-full md:w-auto items-center gap-2">
-              <Input placeholder="Pesquisar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full md:w-64"/>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Input placeholder="Pesquisar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full md:w-64"/>
+                </TooltipTrigger>
+                <TooltipContent><p>Buscar por nome, marca ou SKU.</p></TooltipContent>
+              </Tooltip>
 
               <Dialog open={isEntryModalOpen} onOpenChange={setEntryModalOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" className="shrink-0">Registrar Entrada</Button>
-              </DialogTrigger>
-              <DialogContent>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" className="shrink-0">Registrar Entrada</Button>
+                    </DialogTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Registrar entrada de estoque para um produto existente.</p>
+                  </TooltipContent>
+                </Tooltip>
+                <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Registrar Nova Entrada</DialogTitle>
+                  <DialogTitle className="flex items-center gap-2">
+                      Registrar Nova Entrada
+                      <ContextHelp
+                        title="Entrada de Estoque"
+                        content="Use este modal para adicionar estoque a uma variante de produto existente. Isso soma a quantidade, não substitui."
+                      />
+                    </DialogTitle>
                 </DialogHeader>
 
                 <div className="space-y-4 py-4">
-  {/* Data da Entrada */}
+                {/* Data da Entrada */}
                 <div>
                   <Label htmlFor="dataEntrada">Data da Entrada</Label>
                   <Input
@@ -363,7 +386,10 @@ const handleRegisterEntry = async () => {
 
                 {/* Fornecedor / Marca */}
                 <div>
-                  <Label htmlFor="marcaEntrada">Fornecedor (Marca)</Label>
+                  <Label htmlFor="marcaEntrada" className="flex items-center gap-1.5">
+                        Fornecedor (Marca)
+                        <ContextHelp content="Selecione primeiro o fornecedor (marca) para filtrar a lista de produtos." />
+                      </Label>
                   <Select
                     value={entryForm.marcaId}
                     onValueChange={(value) => {
@@ -387,7 +413,10 @@ const handleRegisterEntry = async () => {
 
                 {/* Produto / Variante */}
                 <div>
-                  <Label htmlFor="variante-select">Produto (Variante)</Label>
+                  <Label htmlFor="variante-select" className="flex items-center gap-1.5">
+                      Produto (Variante)
+                      <ContextHelp content="A lista de produtos aqui é filtrada pelo fornecedor que você selecionou acima." />
+                  </Label>
                   <Select
                     value={entryForm.varianteId}
                     onValueChange={(value) => setEntryForm(prev => ({ ...prev, varianteId: value }))}
@@ -423,7 +452,10 @@ const handleRegisterEntry = async () => {
 
                 {/* Nota Fiscal */}
                 <div>
-                  <Label htmlFor="numeroNota">Nota Fiscal</Label>
+                  <Label htmlFor="numeroNota" className="flex items-center gap-1.5">
+                        Nota Fiscal
+                        <ContextHelp content="O número da nota é usado para evitar registros duplicados." />
+                  </Label>
                   <Input
                     id="numeroNota"
                     value={entryForm.numeroNota}
@@ -444,11 +476,32 @@ const handleRegisterEntry = async () => {
 
 
               <Dialog open={isCreateModalOpen} onOpenChange={setCreateModalOpen}>
-                <DialogTrigger asChild><Button className="bg-accent text-accent-foreground hover:bg-accent/90 shrink-0 gap-1"><PlusCircle className="h-4 w-4" />Adicionar</Button></DialogTrigger>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <DialogTrigger asChild>
+                      <Button className="bg-accent text-accent-foreground hover:bg-accent/90 shrink-0 gap-1">
+                        <PlusCircle className="h-4 w-4" />Adicionar
+                      </Button>
+                    </DialogTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Adicionar um novo produto base e sua primeira variante.</p>
+                  </TooltipContent>
+                </Tooltip>
                 <DialogContent className="max-h-[90vh] overflow-y-auto">
-                  <DialogHeader><DialogTitle>Adicionar Novo Produto</DialogTitle></DialogHeader>
+                  <DialogHeader><DialogTitle className="flex items-center gap-2">
+                      Adicionar Novo Produto
+                      <ContextHelp
+                        title="Produto Base + Primeira Variante"
+                        content="Você está criando um 'Produto Base' (ex: Camisa Polo) e a 'Primeira Variante' dele (ex: Cor Azul, Tamanho P). Você poderá adicionar mais variantes depois."
+                      />
+                    </DialogTitle>
+                  </DialogHeader>
                   <div className="space-y-4 py-4">
-                    <h3 className="font-semibold text-lg border-b pb-2">Dados do Produto Base</h3>
+                    <h3 className="font-semibold text-lg border-b pb-2 flex items-center gap-1.5">
+                      Dados do Produto Base
+                      <ContextHelp content="Informações gerais que se aplicam a todas as variantes (ex: nome 'Camisa Polo', marca 'Nike')." />
+                    </h3>
                     <div><Label>Nome</Label><Input value={formBase.nome} onChange={(e) => setFormBase(p => ({...p, nome: e.target.value}))} /></div>
                     <div><Label>Marca</Label>
                       <Select value={formBase.marcaId} onValueChange={(v) => setFormBase(p => ({...p, marcaId: v}))}>
@@ -462,14 +515,20 @@ const handleRegisterEntry = async () => {
                         <SelectContent>{categorias.map(c => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}</SelectContent>
                       </Select>
                     </div>
-                    <h3 className="font-semibold text-lg border-b pb-2 pt-4">Dados da Primeira Variante</h3>
+                    <h3 className="font-semibold text-lg border-b pb-2 pt-4 flex items-center gap-1.5">
+                      Dados da Primeira Variante
+                      <ContextHelp content="Informações específicas desta combinação (ex: Cor 'Azul', Tamanho 'P', Preço, Estoque)." />
+                    </h3>
                     <div><Label>Cor</Label>
                       <Select value={formVariante.corId} onValueChange={(v) => setFormVariante(p => ({...p, corId: v}))}>
                         <SelectTrigger><SelectValue placeholder="Selecione uma cor" /></SelectTrigger>
                         <SelectContent>{cores.map(c => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}</SelectContent>
                       </Select>
                     </div>
-                    <div><Label>Tamanho</Label>
+                    <div><Label className="flex items-center gap-1.5">
+                        Tamanho
+                        <ContextHelp content="Campo opcional. Deixe 'Nenhum' para produtos de tamanho único." />
+                      </Label>
                       <Select value={formVariante.tamanhoId} onValueChange={(v) => setFormVariante(p => ({...p, tamanhoId: v === 'none' ? '' : v}))}>
                         <SelectTrigger><SelectValue placeholder="Selecione (opcional)" /></SelectTrigger>
                         <SelectContent>
@@ -515,7 +574,10 @@ const handleRegisterEntry = async () => {
                     </div>
 
                     <div>
-                      <Label>Estoque Mínimo</Label>
+                      <Label className="flex items-center gap-1.5">
+                        Estoque Mínimo
+                        <ContextHelp content="Quando o estoque atingir este número, um alerta será gerado no Dashboard e nas Notificações." />
+                      </Label>
                       <Input
                         type="number"
                         min={0}
@@ -529,7 +591,10 @@ const handleRegisterEntry = async () => {
                     </div>
 
                     <div>
-                      <Label>SKU</Label>
+                      <Label className="flex items-center gap-1.5">
+                        SKU
+                        <ContextHelp content="SKU (Stock Keeping Unit) é um código único para esta variante específica. (Opcional)" />
+                      </Label>
                       <Input
                         value={formVariante.sku}
                         onChange={(e) => setFormVariante((p) => ({ ...p, sku: e.target.value }))}
@@ -552,12 +617,12 @@ const handleRegisterEntry = async () => {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Produto</TableHead>
-                <TableHead>Marca</TableHead>
-                <TableHead>Cor</TableHead>
-                <TableHead>Tamanho</TableHead>
-                <TableHead className="text-center">Estoque</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
+                <TableHead><Tooltip><TooltipTrigger className="cursor-default">Produto</TooltipTrigger><TooltipContent><p>Nome base do produto.</p></TooltipContent></Tooltip></TableHead>
+                <TableHead><Tooltip><TooltipTrigger className="cursor-default">Marca</TooltipTrigger><TooltipContent><p>Marca (Fornecedor) do produto.</p></TooltipContent></Tooltip></TableHead>
+                <TableHead><Tooltip><TooltipTrigger className="cursor-default">Cor</TooltipTrigger><TooltipContent><p>Cor específica desta variante.</p></TooltipContent></Tooltip></TableHead>
+                <TableHead><Tooltip><TooltipTrigger className="cursor-default">Tamanho</TooltipTrigger><TooltipContent><p>Tamanho específico desta variante.</p></TooltipContent></Tooltip></TableHead>
+                <TableHead className="text-center"><Tooltip><TooltipTrigger className="cursor-default">Estoque</TooltipTrigger><TooltipContent><p>Quantidade atual em estoque.</p></TooltipContent></Tooltip></TableHead>
+                <TableHead className="text-right"><Tooltip><TooltipTrigger className="cursor-default">Ações</TooltipTrigger><TooltipContent><p>Editar ou excluir esta variante.</p></TooltipContent></Tooltip></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -571,31 +636,36 @@ const handleRegisterEntry = async () => {
                   <TableCell>{produto.tamanho?.nome || 'N/A'}</TableCell>
                   <TableCell className="text-center">{produto.quantidade}</TableCell>
                   <TableCell className="text-right">
-                    <DropdownMenu
-                      open={openMenuId === produto.id_variante}
-                      onOpenChange={(open) => setOpenMenuId(open ? produto.id_variante : null)}
-                    >
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={() => handleEditFromMenu(produto)}
-                          onSelect={() => handleEditFromMenu(produto)}
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <DropdownMenu
+                          open={openMenuId === produto.id_variante}
+                          onOpenChange={(open) => setOpenMenuId(open ? produto.id_variante : null)}
                         >
-                          Editar
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="text-red-600"
-                          onClick={() => handleDeleteFromMenu(produto)}
-                          onSelect={() => handleDeleteFromMenu(produto)}
-                        >
-                          Excluir
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => handleEditFromMenu(produto)}
+                              onSelect={() => handleEditFromMenu(produto)}
+                            >
+                              Editar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-red-600"
+                              onClick={() => handleDeleteFromMenu(produto)}
+                              onSelect={() => handleDeleteFromMenu(produto)}
+                            >
+                              Excluir
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TooltipTrigger>
+                      <TooltipContent><p>Mais ações</p></TooltipContent>
+                    </Tooltip>
                   </TableCell>
                 </TableRow>
               ))}
@@ -633,7 +703,7 @@ const handleRegisterEntry = async () => {
               <DialogHeader><DialogTitle>Editar: {editingItem.nome} ({editingItem.cor.nome})</DialogTitle></DialogHeader>
               <div className="space-y-4 py-4">
                 <h3 className="font-semibold text-lg border-b pb-2">Dados do Produto Base</h3>
-                <div><Label>Nome</Label><Input value={editingItem.nome} onChange={(e) => setEditingItem(p => p ? {...p, nome: e.target.value} : null)} /></div>
+                <div><Label>Nome</Label><Input value={editingItem.nome} onChange={(e) => setEditingItem(p => p ? {...p, nome: e.target.value} : null)} /></div> 
                 <div><Label>Marca</Label>
                   <Select value={editingItem.marca.id} onValueChange={(v) => setEditingItem(p => p ? {...p, marca: marcas.find(m => m.id === v)!} : null)}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
@@ -646,7 +716,10 @@ const handleRegisterEntry = async () => {
                     <SelectContent>{categorias.map(c => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
-                <h3 className="font-semibold text-lg border-b pb-2 pt-4">Dados da Variante</h3>
+                <h3 className="font-semibold text-lg border-b pb-2 pt-4 flex items-center gap-1.5">
+                  Dados da Variante
+                  <ContextHelp content="Alterar estes dados (Cor, Tamanho, Preço, Estoque) afetará APENAS esta variante específica." />
+                </h3>
                 <div><Label>Cor</Label>
                   <Select value={editingItem.cor.id} onValueChange={(v) => setEditingItem(p => p ? {...p, cor: cores.find(c => c.id === v)!} : null)}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
@@ -693,7 +766,13 @@ const handleRegisterEntry = async () => {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
+            <AlertDialogTitle className="flex items-center gap-2">
+              Você tem certeza?
+              <ContextHelp
+                title="Excluir Variante"
+                content="Esta ação remove apenas esta variante (ex: 'Azul P'). O produto base ('Camisa Polo') e suas outras variantes (ex: 'Azul M') não serão afetados. A ação não pode ser desfeita."
+              />
+            </AlertDialogTitle>
             <AlertDialogDescription>
               A ação de excluir a variante "{variantToDelete?.nome} - {variantToDelete?.cor.nome}" não pode ser desfeita.
             </AlertDialogDescription>

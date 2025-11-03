@@ -11,13 +11,13 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { cn } from '@/lib/utils';
 
 type Notificacao = {
-  id: string; // Este é o ID da relação NotificacaoUsuario
+  id: string;
   lida: boolean;
   notificacao: {
     id_notificacao: string;
     mensagem: string;
     dataEnvio: string;
-    link?: string | null; // Adicionamos o link opcional
+    link?: string | null; 
   }
 }
 
@@ -35,17 +35,15 @@ export function NotificationBell() {
   };
   
   useEffect(() => {
-    fetchNotifications(); // Busca na primeira vez
-    const interval = setInterval(fetchNotifications, 30000); // Busca a cada 30 segundos
-    return () => clearInterval(interval); // Limpa o intervalo ao sair da página
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 30000);
+    return () => clearInterval(interval); 
   }, []);
 
   const handleMarkAsRead = async (notificationId: string) => {
-    // Atualização otimista: remove o destaque e decrementa o contador imediatamente
     setNotifications(prev => prev.map(n => n.id === notificationId ? { ...n, lida: true } : n));
     setUnreadCount(prev => Math.max(0, prev - 1));
 
-    // Chama a API em segundo plano
     await fetch(`/api/notificacoes/${notificationId}/read`, { method: 'POST' });
   };
 

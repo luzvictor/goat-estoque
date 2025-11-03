@@ -22,8 +22,6 @@ export async function GET(request: Request) {
 
     console.log(`Buscando pedidos de ${fromDate.toISOString()} até ${toDate.toISOString()}`);
 
-    // --- LÓGICA DA QUERY CORRIGIDA ---
-    // 1. Buscamos diretamente na tabela 'Pedido' filtrando pela data
     const pedidosNoPeriodo = await prisma.pedido.findMany({
       where: {
         data: {
@@ -31,11 +29,10 @@ export async function GET(request: Request) {
           lte: toDate,
         }
       },
-      // 2. Incluímos os dados relacionados que precisamos para os cálculos
       include: {
         produtos: {
           include: {
-            variante: true // Inclui os dados da variante (valorCusto, valorVenda)
+            variante: true
           }
         }
       }
@@ -46,10 +43,8 @@ export async function GET(request: Request) {
     let faturamentoTotal = 0;
     let custoTotal = 0;
 
-    // 3. Iteramos sobre os pedidos encontrados para fazer os cálculos
     for (const pedido of pedidosNoPeriodo) {
       for (const item of pedido.produtos) {
-        // Verifica se a variante e os valores existem para evitar erros
         if (item.variante) {
           faturamentoTotal += item.quantidade * item.variante.valorVenda;
           custoTotal += item.quantidade * item.variante.valorCusto;

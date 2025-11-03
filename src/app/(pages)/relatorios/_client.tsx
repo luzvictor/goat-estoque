@@ -2,11 +2,17 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { DollarSign, TrendingUp, TrendingDown, Percent, Loader2 } from 'lucide-react';
 import { DateRange } from "react-day-picker";
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { startOfMonth, endOfMonth } from "date-fns";
+import { ContextHelp } from "@/components/ui/ContextHelp";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 type RelatorioData = {
   faturamentoTotal: number;
@@ -23,24 +29,20 @@ const formatCurrency = (value: number) => {
 export default function RelatoriosPageClient() {
   const [data, setData] = useState<RelatorioData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  
-  // Define um estado inicial de data válido
   const [date, setDate] = useState<DateRange | undefined>({
     from: startOfMonth(new Date()),
     to: endOfMonth(new Date()),
   });
 
   const fetchReportData = useCallback(async (currentDate: DateRange | undefined) => {
-    // Garante que o período esteja completo antes de buscar
     if (!currentDate?.from || !currentDate?.to) {
       return;
     }
     
     setIsLoading(true);
-    setData(null); // Limpa os dados antigos antes de uma nova busca
+    setData(null); 
 
     try {
-      // Converte as datas para o formato ISO, que é universal e seguro para URLs
       const fromISO = currentDate.from.toISOString();
       const toISO = currentDate.to.toISOString();
 
@@ -56,13 +58,11 @@ export default function RelatoriosPageClient() {
 
     } catch (error: any) {
       console.error(error);
-      // alert() ou toast() aqui
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  // O useEffect agora depende do estado 'date' e da função de busca
   useEffect(() => {
     fetchReportData(date);
   }, [date, fetchReportData]);
@@ -70,10 +70,21 @@ export default function RelatoriosPageClient() {
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
       <div className="flex flex-col md:flex-row items-center justify-between space-y-2 md:space-y-0">
-        <h2 className="text-3xl font-bold tracking-tight text-accent">Relatório de Lucratividade</h2>
-        <div className="flex items-center space-x-2">
-          <DateRangePicker date={date} setDate={setDate} />
+        <div className="flex items-center gap-2">
+          <h2 className="text-3xl font-bold tracking-tight text-accent">Relatório de Lucratividade</h2>
+          <ContextHelp
+            title="Relatório de Lucratividade"
+            content="Este relatório calcula o faturamento, custos, lucro bruto e margem de lucro com base nos pedidos 'Concluídos' dentro do período selecionado."
+          />
         </div>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="flex items-center space-x-2">
+              <DateRangePicker date={date} setDate={setDate} />
+            </div>
+          </TooltipTrigger>
+          <TooltipContent><p>Selecione o período para o relatório.</p></TooltipContent>
+        </Tooltip>
       </div>
 
       {isLoading ? (
@@ -82,7 +93,10 @@ export default function RelatoriosPageClient() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Faturamento Total</CardTitle>
+              <CardTitle className="text-sm font-medium flex items-center gap-1.5">
+                Faturamento Total
+                <ContextHelp content="Soma do 'valorVenda' de todos os itens em pedidos 'Concluídos' no período." />
+              </CardTitle>
               <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
@@ -91,7 +105,10 @@ export default function RelatoriosPageClient() {
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Custo Total dos Produtos</CardTitle>
+              <CardTitle className="text-sm font-medium flex items-center gap-1.5">
+                Custo Total dos Produtos
+                <ContextHelp content="Soma do 'valorCusto' de todos os itens em pedidos 'Concluídos' no período." />
+              </CardTitle>
               <TrendingDown className="h-4 w-4 text-destructive" />
             </CardHeader>
             <CardContent>
@@ -100,7 +117,10 @@ export default function RelatoriosPageClient() {
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Lucro Bruto</CardTitle>
+              <CardTitle className="text-sm font-medium flex items-center gap-1.5">
+                Lucro Bruto
+                <ContextHelp content="Cálculo: (Faturamento Total - Custo Total)." />
+              </CardTitle>
               <TrendingUp className="h-4 w-4 text-emerald-600" />
             </CardHeader>
             <CardContent>
@@ -109,7 +129,10 @@ export default function RelatoriosPageClient() {
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Margem de Lucro</CardTitle>
+              <CardTitle className="text-sm font-medium flex items-center gap-1.5">
+                Margem de Lucro
+                <ContextHelp content="Cálculo: (Lucro Bruto / Faturamento Total) * 100." />
+              </CardTitle>
               <Percent className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>

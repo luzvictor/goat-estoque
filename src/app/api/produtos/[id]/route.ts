@@ -21,7 +21,7 @@
               tamanho: true,
             },
             orderBy: {
-              cor: { nome: "asc" }, // Ordena pelo nome da cor
+              cor: { nome: "asc" },
             },
           },
         },
@@ -52,7 +52,6 @@
   try {
     const { id } = params;
 
-    // Verifica se o produto existe e puxa suas variantes
     const produtoBase = await prisma.produtoBase.findUnique({
       where: { id_produto_base: id },
       include: { variantes: true },
@@ -65,7 +64,6 @@
       );
     }
 
-    //Verifica se alguma variante possui estoque > 0
     const varianteComEstoque = produtoBase.variantes.find(
       (v) => v.quantidade > 0
     );
@@ -80,7 +78,6 @@
       );
     }
 
-    // Verifica se alguma variante foi vendida 
     const varianteIds = produtoBase.variantes.map((v) => v.id_variante);
 
     if (varianteIds.length > 0) {
@@ -99,7 +96,6 @@
       }
     }
 
-    //Se passou em todas as verificações, exclui o produto
     await prisma.produtoBase.delete({
       where: { id_produto_base: id },
     });
@@ -141,7 +137,6 @@
 
       if (nome !== undefined) dataToUpdate.nome = nome;
 
-      // Atualização de relações usando connect
       if (marca !== undefined) {
         dataToUpdate.marca = { connect: { id: marca } };
       }

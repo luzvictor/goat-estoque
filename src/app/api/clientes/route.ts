@@ -15,7 +15,6 @@ export async function GET(request: Request) {
           { 
             nome: { 
               contains: searchTerm, 
-              // CORREÇÃO: Usamos o tipo QueryMode importado do Prisma
               mode: Prisma.QueryMode.insensitive 
             } 
           },
@@ -50,14 +49,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "O nome é obrigatório." }, { status: 400 });
     }
 
-    // --- CORREÇÃO APLICADA AQUI ---
-    // Se o CPF foi enviado, remove todos os caracteres que não são dígitos.
     const cpfNormalizado = cpf ? String(cpf).replace(/\D/g, '') : null;
 
     const novoCliente = await prisma.cliente.create({
       data: {
         nome,
-        cpf: cpfNormalizado, // Salva o CPF normalizado
+        cpf: cpfNormalizado,
         endereco,
         telefone,
       },

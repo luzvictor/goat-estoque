@@ -8,9 +8,8 @@ import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from 'lucide-react';
-import { Pedido as PedidoSimplificado } from "@/types"; // Usado para a prop onStatusChange
+import { Pedido as PedidoSimplificado } from "@/types";
 
-// Tipagem para o pedido completo que será buscado pela API
 type PedidoCompleto = PedidoSimplificado & {
   Cliente: {
     nome: string;
@@ -20,7 +19,6 @@ type PedidoCompleto = PedidoSimplificado & {
   } | null;
 };
 
-// A prop agora é 'pedidoId'
 interface PedidoDetalhesModalProps {
   pedidoId: string | null;
   onClose: () => void;
@@ -43,11 +41,9 @@ const formatCurrency = (value: number): string => {
 };
 
 export function PedidoDetalhesModal({ pedidoId, onClose, onStatusChange }: PedidoDetalhesModalProps) {
-  // Novos estados para carregar e guardar os dados completos
   const [pedido, setPedido] = useState<PedidoCompleto | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  // useEffect para buscar os dados na API quando o modal abre (quando pedidoId muda)
   useEffect(() => {
     async function fetchPedidoDetails() {
       if (!pedidoId) return;
@@ -74,7 +70,6 @@ export function PedidoDetalhesModal({ pedidoId, onClose, onStatusChange }: Pedid
     fetchPedidoDetails();
   }, [pedidoId, onClose]);
   
-  // Limpa os dados ao fechar para garantir que o loading apareça da próxima vez
   const handleClose = () => {
     setPedido(null);
     onClose();
@@ -99,7 +94,6 @@ export function PedidoDetalhesModal({ pedidoId, onClose, onStatusChange }: Pedid
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
               <div>
                 <h3 className="font-semibold mb-2">Informações do Cliente</h3>
-                {/* Agora exibe todos os detalhes do cliente */}
                 {pedido.Cliente ? (
                   <div className="text-sm space-y-1">
                     <p><strong>Nome:</strong> {pedido.Cliente.nome}</p>

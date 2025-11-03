@@ -19,20 +19,25 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Loader2, PlusCircle, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { ContextHelp } from "@/components/ui/ContextHelp";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
-// Tipagem genérica para os itens (Marca, Categoria, etc.)
+
 type AttributeItem = {
   id: string;
   nome: string;
 };
 
-// Props que o nosso componente reutilizável vai aceitar
 interface AttributeManagerProps {
-  title: string; // Ex: "Marcas"
-  itemLabel: string; // Ex: "Marca"
+  title: string;
+  itemLabel: string;
   items: AttributeItem[];
-  apiEndpoint: string; // Ex: "/api/marcas"
-  onUpdate: () => void; // Função para recarregar os dados na página principal
+  apiEndpoint: string; 
+  onUpdate: () => void;
 }
 
 export function AttributeManager({ title, itemLabel, items, apiEndpoint, onUpdate }: AttributeManagerProps) {
@@ -40,7 +45,6 @@ export function AttributeManager({ title, itemLabel, items, apiEndpoint, onUpdat
   const [newItemName, setNewItemName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Objeto para mapear títulos a placeholders específicos
   const placeholders: { [key: string]: string } = {
     Marcas: "Ex: Nike, Adidas...",
     Categorias: "Ex: Camisetas, Calças...",
@@ -48,23 +52,18 @@ export function AttributeManager({ title, itemLabel, items, apiEndpoint, onUpdat
     Tamanhos: "Ex: P, M, G...",
   };
 
-  // Seleciona o placeholder com base no título, com um fallback genérico
   const placeholderText = placeholders[title] || `Nome do(a) ${itemLabel}`;
 
-  // Determina o gênero do item para ajustar as mensagens de notificação
   const isMasculine = itemLabel === "Tamanho";
 
-  // Efeito para limpar o campo de input sempre que o modal for fechado
   useEffect(() => {
     if (!isModalOpen) {
-      // Adiciona um pequeno delay para a animação de fechamento do modal ser suave
       setTimeout(() => {
         setNewItemName("");
       }, 150);
     }
   }, [isModalOpen]);
 
-  // Função para criar um novo item (marca, categoria, etc.)
   async function handleCreate() {
     if (!newItemName.trim()) {
       toast.error(`O nome do ${itemLabel} não pode ser vazio.`);
@@ -83,8 +82,8 @@ export function AttributeManager({ title, itemLabel, items, apiEndpoint, onUpdat
       const participle = isMasculine ? 'criado' : 'criada';
       toast.success(`${itemLabel} ${participle} com sucesso!`);
       
-      setIsModalOpen(false); // Fecha o modal
-      onUpdate(); // Chama a função para recarregar os dados na página pai
+      setIsModalOpen(false);
+      onUpdate(); 
     } catch (error: any) {
       toast.error(`Erro ao criar ${itemLabel}`, { description: error.message });
     } finally {
@@ -92,7 +91,6 @@ export function AttributeManager({ title, itemLabel, items, apiEndpoint, onUpdat
     }
   }
 
-  // Função para deletar um item. Movida para dentro do componente.
   async function handleDelete(itemId: string) {
     try {
       const response = await fetch(`${apiEndpoint}/${itemId}`, { method: "DELETE" });
@@ -101,7 +99,7 @@ export function AttributeManager({ title, itemLabel, items, apiEndpoint, onUpdat
 
       const participle = isMasculine ? 'excluído' : 'excluída';
       toast.success(`${itemLabel} ${participle} com sucesso!`);
-      onUpdate(); // Recarrega os dados na página pai
+      onUpdate();
     } catch (error: any) {
       toast.error(`Erro ao excluir ${itemLabel}`, { description: error.message });
     }
@@ -109,18 +107,30 @@ export function AttributeManager({ title, itemLabel, items, apiEndpoint, onUpdat
 
   return (
     <div className="space-y-4">
-      {/* Modal de criação */}
       <div className="flex justify-end">
         <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-1">
-              <PlusCircle className="h-4 w-4" />
-              Adicionar {itemLabel}
-            </Button>
-          </DialogTrigger>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DialogTrigger asChild>
+                <Button className="gap-1">
+                  <PlusCircle className="h-4 w-4" />
+                  Adicionar {itemLabel}
+                </Button>
+              </DialogTrigger>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Adicionar um novo item: {itemLabel}</p>
+            </TooltipContent>
+          </Tooltip>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Adicionar {itemLabel}</DialogTitle>
+              <DialogTitle className="flex items-center gap-2">
+                Adicionar {itemLabel}
+                <ContextHelp
+                  title={`Adicionar ${itemLabel}`}
+                  content={`Insira o nome do(a) novo(a) ${itemLabel} que deseja disponibilizar no sistema.`}
+                />
+              </DialogTitle>
             </DialogHeader>
             <div className="py-4">
               <Label htmlFor="name">{itemLabel}</Label>
@@ -142,7 +152,6 @@ export function AttributeManager({ title, itemLabel, items, apiEndpoint, onUpdat
         </Dialog>
       </div>
 
-      {/* Tabela de itens */}
       <div className="border rounded-md">
         <Table>
           <TableHeader>
@@ -158,18 +167,31 @@ export function AttributeManager({ title, itemLabel, items, apiEndpoint, onUpdat
                   <TableCell className="font-medium">{item.nome}</TableCell>
                   <TableCell className="text-right">
                     <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-destructive hover:text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </AlertDialogTrigger>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Remover {itemLabel}</p>
+                        </TooltipContent>
+                      </Tooltip>
                       <AlertDialogContent>
                         <AlertDialogHeader>
-                          <AlertDialogTitle>Excluir {itemLabel}</AlertDialogTitle>
+                          <AlertDialogTitle className="flex items-center gap-2">
+                            Excluir {itemLabel}
+                            <ContextHelp
+                              title="Atenção!"
+                              content={`Se este(a) ${itemLabel} já estiver associado(a) a um produto, ele(a) não poderá ser removido(a) para manter a integridade dos dados.`}
+                            />
+                          </AlertDialogTitle>
                           <AlertDialogDescription>
                             Tem certeza que deseja excluir <span className="font-medium">{item.nome}</span>? 
                             Esta ação não poderá ser desfeita.

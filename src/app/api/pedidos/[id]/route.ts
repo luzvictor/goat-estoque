@@ -5,16 +5,12 @@ import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { criarNotificacaoParaAdmins } from "@/lib/notifications";
 
-// CORREÇÃO: "Concluído" com acento para bater com o frontend
 const ALLOWED_STATUSES_FRONTEND = ["Pendente", "Enviado", "Concluído", "Cancelado"];
 
-// CORREÇÃO: Tipagem e mapeamento ajustados
-// Chave: O que o frontend envia (ex: "Concluído").
-// Valor: O que o Prisma Client espera (PascalCase, correspondendo ao seu Enum, ex: "Entregue").
 const statusMap: { [key: string]: 'Pendente' | 'Enviado' | 'Concluido' | 'Cancelado' } = {
   "Pendente": "Pendente",
   "Enviado": "Enviado",
-  "Concluído": "Concluido", // <<< AQUI ESTÁ A CORREÇÃO FINAL E DEFINITIVA
+  "Concluído": "Concluido",
   "Cancelado": "Cancelado"
 };
 
@@ -39,7 +35,6 @@ export async function PUT(
 
     const statusBackend = statusMap[statusFrontend];
 
-    // 🔍 1️⃣ Busca o pedido atual no banco
     const pedidoAtual = await prisma.pedido.findUnique({
       where: { id },
       select: { status: true },
@@ -54,7 +49,6 @@ export async function PUT(
 
     const statusAtual = pedidoAtual.status;
 
-    // 🔒 2️⃣ Define as transições permitidas
     const transicoesPermitidas: Record<string, string[]> = {
       Pendente: ["Enviado", "Cancelado"],
       Enviado: ["Concluido", "Cancelado"],
@@ -73,13 +67,11 @@ export async function PUT(
       );
     }
 
-    // ✅ 3️⃣ Se passou na validação, atualiza o status
     const pedidoAtualizado = await prisma.pedido.update({
       where: { id },
       data: { status: statusBackend },
     });
 
-    // 🔔 4️⃣ Notificação se o pedido for cancelado
     if (statusFrontend === 'Cancelado') {
       await criarNotificacaoParaAdmins({
         tx: prisma,
@@ -123,7 +115,6 @@ export async function GET(
     const pedido = await prisma.pedido.findUnique({
       where: { id: id },
       include: {
-        // Inclui os dados do cliente associado
         Cliente: { 
           select: { 
             nome: true,
@@ -132,13 +123,10 @@ export async function GET(
             endereco: true
           } 
         },
-        // Inclui os itens do pedido
         produtos: {
           include: {
-            // Para cada item, inclui os dados da variante
             variante: {
               include: {
-                // E para cada variante, inclui os objetos completos
                 produtoBase: true,
                 cor: true,
                 tamanho: true,
@@ -171,11 +159,10 @@ export async function DELETE(
     const { id: pedidoId } = params;
 
     const resultado = await prisma.$transaction(async (tx) => {
-      // 1️⃣ Busca o pedido e seus itens
       const pedido = await tx.pedido.findUnique({
         where: { id: pedidoId },
         include: {
-          produtos: true, // Itens do pedido
+          produtos: true,
         },
       });
 
@@ -183,13 +170,8 @@ export async function DELETE(
         throw new Error("Pedido não encontrado");
       }
 
-      // 2️⃣ Regra de negócio:
-      // ❌ Não pode remover pedidos Enviados, Concluídos ou Cancelados.
-      // ✅ Só pode remover se ainda estiver "Pendente".
       if (pedido.status !== "Pendente") {
-        // 📦 Caso o pedido tenha sido Enviado → será cancelado + devolve estoque
         if (pedido.status === "Enviado") {
-          // 2.1. Devolve o estoque dos produtos
           for (const item of pedido.produtos) {
             await tx.varianteProduto.update({
               where: { id_variante: item.varianteId },
@@ -201,13 +183,11 @@ export async function DELETE(
             });
           }
 
-          // 2.2. Atualiza o status para "Cancelado"
           await tx.pedido.update({
             where: { id: pedidoId },
             data: { status: "Cancelado" },
           });
 
-          // 2.3. Notifica os administradores
           await criarNotificacaoParaAdmins({
             tx,
             mensagem: `O Pedido #${pedidoId.substring(0, 8)} foi cancelado automaticamente e o estoque foi devolvido.`,
@@ -220,13 +200,11 @@ export async function DELETE(
           };
         }
 
-        // 🚫 Concluído ou Cancelado não podem ser removidos
         throw new Error(
           `Não é permitido remover um pedido com status "${pedido.status}".`
         );
       }
 
-      // 3️⃣ Se o pedido for Pendente → pode remover normalmente
       for (const item of pedido.produtos) {
         await tx.varianteProduto.update({
           where: { id_variante: item.varianteId },
@@ -238,12 +216,10 @@ export async function DELETE(
         });
       }
 
-      // 4️⃣ Remove os itens da tabela intermediária
       await tx.pedidoProduto.deleteMany({
         where: { pedidoId },
       });
 
-      // 5️⃣ Remove o pedido principal
       await tx.pedido.delete({
         where: { id: pedidoId },
       });

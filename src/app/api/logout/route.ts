@@ -1,6 +1,4 @@
 // Em: src/app/api/logout/route.ts
-// CORREÇÃO: Seu código estava limpando 'session-token', mas o login definia 'usuarioId'.
-// Esta versão limpa o cookie correto.
 
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';

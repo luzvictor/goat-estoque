@@ -9,10 +9,9 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = params; // Este é o id_variante
+    const { id } = params;
     const body = await request.json();
     
-    // Desestrutura o body para pegar todos os campos possíveis
     const { 
         corId, 
         tamanhoId, 
@@ -24,11 +23,8 @@ export async function PUT(
         imageUrl 
     } = body;
 
-    // Constrói o objeto de atualização dinamicamente
-    // Isso garante que apenas os campos enviados no body sejam atualizados
     const dataToUpdate: Prisma.VarianteProdutoUpdateInput = {};
 
-    // Campos diretos (escalares)
     if (valorCusto !== undefined) dataToUpdate.valorCusto = parseFloat(valorCusto);
     if (valorVenda !== undefined) dataToUpdate.valorVenda = parseFloat(valorVenda);
     if (estoqueMin !== undefined) dataToUpdate.estoqueMin = parseInt(estoqueMin, 10);
@@ -36,15 +32,11 @@ export async function PUT(
     if (sku !== undefined) dataToUpdate.sku = sku;
     if (imageUrl !== undefined) dataToUpdate.imageUrl = imageUrl;
 
-    // Campos de relacionamento
-    // Se um corId for enviado, conecta a nova cor
     if (corId !== undefined) {
       dataToUpdate.cor = { connect: { id: corId } };
     }
     
-    // Se um tamanhoId for enviado, conecta o novo tamanho
     if (tamanhoId !== undefined) {
-        // Se o tamanhoId for nulo, significa que o usuário quer remover o tamanho
         if (tamanhoId === null) {
             dataToUpdate.tamanho = { disconnect: true };
         } else {
@@ -52,7 +44,6 @@ export async function PUT(
         }
     }
 
-    // Verifica se há algo para atualizar
     if (Object.keys(dataToUpdate).length === 0) {
       return NextResponse.json(
         { error: "Nenhum dado para atualização foi fornecido." },
@@ -77,7 +68,6 @@ export async function PUT(
         return NextResponse.json({ error: "Variante não encontrada." }, { status: 404 });
       }
       if (error.code === 'P2002') {
-        // O campo 'meta.target' pode te dizer qual campo unique falhou
         const target = (error.meta?.target as string[])?.join(', ');
         return NextResponse.json({ error: `O campo ${target} já está em uso.` }, { status: 409 });
       }
@@ -87,7 +77,6 @@ export async function PUT(
 }
 
 // DELETE - Deletar uma Variante de Produto específica
-// A sua função DELETE já está muito bem implementada com transação. Nenhuma alteração necessária.
 export async function DELETE(
   request: Request,
   { params }: { params: { id: string } }

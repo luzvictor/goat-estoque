@@ -15,20 +15,22 @@ export async function GET() {
         variante: {
           include: {
             produtoBase: {
-              include: {
-                marca: true,
-              }
+              include: { marca: true }
             },
             cor: true,
             tamanho: true,
           },
         },
       },
-      orderBy: {
-        data: "desc",
-      },
+      orderBy: { data: "desc" },
     });
-    return NextResponse.json(entradas);
+
+    const entradasFormatadas = entradas.map(entry => ({
+      ...entry,
+      data: entry.data ? new Date(entry.data).toLocaleDateString('pt-BR') : null,
+    }));
+
+    return NextResponse.json(entradasFormatadas);
   } catch (error) {
     console.error("Erro ao buscar entradas de estoque:", error);
     return NextResponse.json(
@@ -44,7 +46,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { varianteId, quantidade, numeroNota } = body;
+    const { varianteId, quantidade, numeroNota, data } = body;
 
     // --- Validação dos Dados de Entrada ---
     if (!varianteId || !quantidade) {
@@ -53,6 +55,7 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
     const qtdNumber = Number(quantidade);
     if (isNaN(qtdNumber) || qtdNumber <= 0) {
       return NextResponse.json(
@@ -61,52 +64,32 @@ export async function POST(request: Request) {
       );
     }
 
-    // --- Transação no Banco de Dados ---
+    const dataEntrada = data ? new Date(data) : new Date();
+    if (isNaN(dataEntrada.getTime())) {
+      return NextResponse.json({ error: "Data inválida." }, { status: 400 });
+    }
+
     const resultado = await prisma.$transaction(async (tx) => {
-      // 1. Cria o registro histórico na tabela de entradas
       await tx.entradaEstoque.create({
         data: {
-          varianteId: varianteId,
+          varianteId,
           quantidade: qtdNumber,
           numeroNota: numeroNota || null,
+          data: dataEntrada, // <-- salva a data
         },
       });
 
-      // 2. Atualiza (incrementa) a quantidade na tabela da variante
       const varianteAtualizada = await tx.varianteProduto.update({
         where: { id_variante: varianteId },
-        data: {
-          quantidade: {
-            increment: qtdNumber,
-          },
-        },
-        // CORREÇÃO: Incluímos todas as informações necessárias para a notificação.
+        data: { quantidade: { increment: qtdNumber } },
         include: {
-          cor: true,       // Inclui o objeto Cor
-          tamanho: true,   // Inclui o objeto Tamanho
-          produtoBase: {   // Inclui o ProdutoBase...
-            include: {
-              marca: true, // ...e a Marca dentro dele.
-            },
-          },
+          cor: true,
+          tamanho: true,
+          produtoBase: { include: { marca: true } },
         },
       });
 
-      // 3. Monta a mensagem da notificação com os dados completos
-      const marcaNome = varianteAtualizada.produtoBase.marca.nome;
-      const produtoNome = varianteAtualizada.produtoBase.nome;
-      const corNome = varianteAtualizada.cor.nome;
-      const tamanhoNome = varianteAtualizada.tamanho?.nome || 'Tamanho Único';
 
-      const mensagem = `${qtdNumber} unidades de "${marcaNome} - ${produtoNome} (${corNome}, ${tamanhoNome})" foram adicionadas ao estoque.`;
-      
-      // 4. Cria a notificação persistente no banco de dados
-      await criarNotificacaoParaAdmins({
-        tx,
-        mensagem: mensagem,
-        link: `/produtos`,
-      });
-      
       return varianteAtualizada;
     });
 
@@ -114,17 +97,12 @@ export async function POST(request: Request) {
 
   } catch (error: any) {
     console.error("Erro ao registrar entrada:", error);
-    
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      // Se a variante não for encontrada no update
-      if (error.code === 'P2025') {
-        return NextResponse.json(
-          { error: "A variante de produto especificada não foi encontrada." },
-          { status: 404 }
-        );
-      }
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+      return NextResponse.json(
+        { error: "A variante de produto especificada não foi encontrada." },
+        { status: 404 }
+      );
     }
-
     return NextResponse.json(
       { error: "Erro interno do servidor ao registrar a entrada." },
       { status: 500 }

@@ -82,7 +82,6 @@ export async function POST(request: Request) {
     }
 
     const pedidoCriado = await prisma.$transaction(async (tx) => {
-      // Passo 1: Verificar estoque (Sem alterações)
       for (const produto of produtos) {
         const varianteEmEstoque = await tx.varianteProduto.findUnique({
           where: { id_variante: produto.varianteId },
@@ -92,7 +91,6 @@ export async function POST(request: Request) {
         }
       }
 
-      // Passo 2: Criar o Pedido (Sem alterações)
       const pedido = await tx.pedido.create({
         data: {
           clienteId: clienteId || null,
@@ -105,9 +103,7 @@ export async function POST(request: Request) {
         },
       });
 
-      // Passo 3: Dar baixa no estoque E VERIFICAR ESTOQUE MÍNIMO
       for (const produto of produtos) {
-        // Atualiza o estoque e PAGA OS DADOS ATUALIZADOS
         const varianteAtualizada = await tx.varianteProduto.update({
           where: { id_variante: produto.varianteId },
           data: {
@@ -115,7 +111,6 @@ export async function POST(request: Request) {
               decrement: produto.quantidade,
             },
           },
-          // Inclui dados que precisamos para a notificação
           include: {
             produtoBase: { select: { nome: true, id_produto_base: true } },
             cor: { select: { nome: true } },
@@ -123,34 +118,21 @@ export async function POST(request: Request) {
           }
         });
 
-        // =======================================================
-        // NOVA LÓGICA DE NOTIFICAÇÃO DE ESTOQUE BAIXO
-        // =======================================================
         const { quantidade, estoqueMin, produtoBase, cor, tamanho, id_variante } = varianteAtualizada;
         
-        // Compara a quantidade ATUAL com o estoque MÍNIMO (do schema)
         if (quantidade <= estoqueMin) {
-          // Monta uma mensagem descritiva
           const nomeVariante = `${produtoBase.nome} (${cor.nome}${tamanho ? ' - ' + tamanho.nome : ''})`;
           const mensagem = `Estoque baixo para ${nomeVariante}. Restam apenas ${quantidade} unidades.`;
           const link = `/produtos/${produtoBase.id_produto_base}?variante=${id_variante}`; // Link direto para o produto/variante
 
-          // Chama a função helper (passando o 'tx' da transação)
           await criarNotificacaoParaAdmins({
             tx,
             mensagem,
             link,
           });
         }
-        // =======================================================
-        // FIM DA NOVA LÓGICA
-        // =======================================================
+
       }
-      
-      // =======================================================
-      // PASSO 4: NOTIFICAÇÃO DE "PEDIDO CRIADO" (REMOVIDO)
-      // =======================================================
-      // (A lógica que estava aqui foi removida conforme sua solicitação)
 
       return pedido;
     });

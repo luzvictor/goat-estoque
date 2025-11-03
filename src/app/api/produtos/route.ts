@@ -1,23 +1,17 @@
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
-// Importe o enum se for usá-lo diretamente, embora o Prisma Client já o entenda
-// import { StatusPedido } from '@prisma/client'; // O Prisma Client exporta os enums
 
 // GET: Listar todos os Produtos Base com suas Variantes
-// (Este endpoint agora retorna os produtos base e aninha suas variantes)
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    // 1. Lendo os novos parâmetros da URL
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '10');
     const searchTerm = searchParams.get('search') || '';
 
-    // Calcula o 'skip' (quantos itens pular)
     const skip = (page - 1) * limit;
 
-    // Constrói a cláusula de busca (igual à que tínhamos)
     const whereClause: Prisma.ProdutoBaseWhereInput = searchTerm
   ? {
       OR: [
@@ -28,7 +22,6 @@ export async function GET(request: Request) {
     }
   : {};
 
-    // 2. Executa duas queries em paralelo: uma para os dados, outra para a contagem total
     const [produtos, total] = await prisma.$transaction([
       prisma.produtoBase.findMany({
         where: whereClause,
@@ -37,7 +30,7 @@ export async function GET(request: Request) {
           categoria: true,
           variantes: {
             include: { cor: true, tamanho: true },
-            orderBy: { cor: { nome: 'asc' } }, // ordena pela cor.nome
+            orderBy: { cor: { nome: 'asc' } },
           },
         },
         orderBy: { nome: 'asc' },
@@ -48,7 +41,6 @@ export async function GET(request: Request) {
     ]);
     const totalPages = Math.ceil(total / limit);
 
-    // 3. Retorna os dados da página E a informação de paginação
     return NextResponse.json({
       data: produtos,
       pagination: {
@@ -68,12 +60,10 @@ export async function GET(request: Request) {
   }
 }
 // POST: Criar um novo Produto Base com suas Variantes
-// (Este endpoint agora espera dados para o ProdutoBase e um array de suas variantes)
 export async function POST(request: Request) {
   try {
     const body = await request.json();
 
-    // Agora o frontend envia os IDs
     const { nome, categoriaId, marcaId, variantes } = body;
 
     if (!nome || !categoriaId || !marcaId) {
@@ -105,7 +95,6 @@ export async function POST(request: Request) {
       }
     }
 
-    // Criação do Produto com relações
     const novoProdutoBaseComVariantes = await prisma.produtoBase.create({
       data: {
         nome,

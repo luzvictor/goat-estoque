@@ -19,14 +19,13 @@ export async function PUT(
       return NextResponse.json({ error: "O nome é obrigatório." }, { status: 400 });
     }
 
-    // --- CORREÇÃO APLICADA AQUI ---
     const cpfNormalizado = cpf ? String(cpf).replace(/\D/g, '') : null;
 
     const clienteAtualizado = await prisma.cliente.update({
       where: { id_cliente: id },
       data: {
         nome,
-        cpf: cpfNormalizado, // Salva o CPF normalizado
+        cpf: cpfNormalizado,
         endereco,
         telefone,
       },
@@ -52,9 +51,6 @@ export async function DELETE(
   try {
     const id = params.id;
 
-    // Graças ao "onDelete: SetNull" no schema do Pedido,
-    // ao deletar um cliente, os pedidos associados a ele
-    // terão seu campo 'clienteId' definido como nulo, preservando o histórico de vendas.
     await prisma.cliente.delete({
       where: { id_cliente: id },
     });
@@ -62,7 +58,6 @@ export async function DELETE(
     return NextResponse.json({ message: "Cliente removido com sucesso." });
 
   } catch (error: any) {
-    // P2025 é o erro do Prisma para "registro não encontrado para deletar"
     if (error.code === 'P2025') {
       return NextResponse.json({ error: "Cliente não encontrado." }, { status: 404 });
     }

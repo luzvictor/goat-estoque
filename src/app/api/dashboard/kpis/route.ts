@@ -17,7 +17,6 @@ export async function GET(request: NextRequest) {
     const fromDate = new Date(from);
     const toDate = new Date(to);
 
-    // --- CÁLCULO DO PERÍODO ATUAL USANDO QUERY SQL RAW OTIMIZADA ---
     const resultadoPeriodoAtual: { total: bigint }[] = await prisma.$queryRaw`
       SELECT 
           SUM("t_pedido_produto"."quantidade" * "t_variante"."valorVenda") as total
@@ -31,10 +30,8 @@ export async function GET(request: NextRequest) {
           t_pedido.data >= ${fromDate} AND t_pedido.data <= ${toDate};
     `;
 
-    // O Prisma retorna um valor de soma como `bigint`, então convertemos para um número.
     const faturamentoAtual = Number(resultadoPeriodoAtual[0]?.total) || 0;
 
-    // --- CÁLCULO DO PERÍODO ANTERIOR USANDO QUERY SQL RAW OTIMIZADA ---
     const duracaoPeriodo = differenceInDays(toDate, fromDate);
     const inicioPeriodoAnterior = subDays(fromDate, duracaoPeriodo + 1);
     const fimPeriodoAnterior = subDays(toDate, duracaoPeriodo + 1);
@@ -54,7 +51,6 @@ export async function GET(request: NextRequest) {
     
     const faturamentoAnterior = Number(resultadoPeriodoAnterior[0]?.total) || 0;
     
-    // --- CÁLCULO DO TOTAL DE PEDIDOS ATUAL (Ainda pode ser feito com findMany, pois é mais simples) ---
     const totalPedidosAtual = await prisma.pedido.count({
       where: { data: { gte: fromDate, lte: toDate } }
     });

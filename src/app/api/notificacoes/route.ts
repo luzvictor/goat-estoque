@@ -2,11 +2,8 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
-// Busca as notificações de um usuário específico
 export async function GET(request: Request) {
   try {
-    // IMPORTANTE: Em um sistema real, você pegaria o ID do usuário da sessão de autenticação.
-    // Como ainda não temos auth, vamos simular pegando o primeiro usuário do banco.
     const usuarioLogado = await prisma.usuario.findFirst();
     
     if (!usuarioLogado) {
