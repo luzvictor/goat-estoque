@@ -94,7 +94,7 @@ export default function RelatoriosPageClient() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-1.5">
-                FReceita Bruta de Vendas
+                Receita Bruta de Vendas
                 <ContextHelp content="Valor total das vendas realizadas (pedidos concluídos) no período." />
               </CardTitle>
               <DollarSign className="h-4 w-4 text-muted-foreground" />

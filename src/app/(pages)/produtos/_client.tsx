@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogFooter,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   DropdownMenu,
@@ -71,14 +72,21 @@ const SortableTableHead = ({ children, sortKey, currentSort, onSort }: {
 
   return (
     <TableHead>
-      <Button
-        variant="ghost"
-        onClick={() => onSort(sortKey)}
-        className="hover:bg-transparent p-0 flex items-center gap-1 font-semibold"
-      >
-        {children}
-        <Icon className="h-4 w-4" />
-      </Button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            onClick={() => onSort(sortKey)}
+            className="hover:bg-transparent p-0 flex items-center gap-1 font-semibold"
+          >
+            {children}
+            <Icon className="h-4 w-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>Clique para ordenar por {typeof children === 'string' ? children.toLowerCase() : sortKey}</p>
+        </TooltipContent>
+      </Tooltip>
     </TableHead>
   );
 };
@@ -138,6 +146,15 @@ export default function ProdutosPageClient() {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+
+  const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
+  const [adjustingItem, setAdjustingItem] = useState<ProdutoDisplay | null>(null);
+  const [adjustForm, setAdjustForm] = useState({ novaQuantidade: 0, motivo: "" });
+
+  const resetAdjustForm = useCallback(() => {
+      setAdjustForm({ novaQuantidade: 0, motivo: "" });
+      setAdjustingItem(null);
+  }, []);
 
   const resetCreateForm = useCallback(() => {
   setFormBase({ nome: "", categoriaId: "", marcaId: "" });
@@ -220,7 +237,7 @@ const handleRegisterEntry = async () => {
 
     toast.success("Entrada registrada com sucesso!");
     setEntryModalOpen(false);
-    await fetchAllData(currentPage); // atualiza tabela
+    await fetchAllData(currentPage);
   } catch (error: any) {
     toast.error("Erro ao registrar entrada", { description: error.message });
   } finally {
@@ -260,6 +277,10 @@ useEffect(() => {
      setEditingItem(null);
   }
 }, [isEditModalOpen]);
+
+useEffect(() => {
+    if (!isAdjustModalOpen) resetAdjustForm();
+  }, [isAdjustModalOpen, resetAdjustForm]);
 
   const displayProdutos = useMemo(() => {
     return produtosBase.flatMap(base =>
@@ -305,6 +326,49 @@ useEffect(() => {
       setIsSubmitting(false);
     }
   }
+
+  async function handleAdjustStock() {
+    if (!adjustingItem) return;
+    if (!adjustForm.motivo.trim()) {
+        toast.error("Informe o motivo do ajuste.");
+        return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const response = await fetch("/api/ajuste-estoque", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            varianteId: adjustingItem.id_variante,
+            novaQuantidade: Number(adjustForm.novaQuantidade),
+            motivo: adjustForm.motivo
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Falha ao ajustar estoque");
+      }
+
+      toast.success("Estoque ajustado com sucesso!");
+      setIsAdjustModalOpen(false);
+      fetchAllData(currentPage);
+    } catch (error: any) {
+      toast.error("Erro no ajuste", { description: error.message });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  const handleAdjustFromMenu = (produto: ProdutoDisplay) => {
+    setOpenMenuId(null);
+    setTimeout(() => {
+        setAdjustingItem(produto);
+        setAdjustForm({ novaQuantidade: produto.quantidade, motivo: "" });
+        setIsAdjustModalOpen(true);
+    }, 0);
+  };
 
   const openDeleteAlert = (produto: ProdutoDisplay) => {
     setVariantToDelete(produto);
@@ -681,18 +745,11 @@ useEffect(() => {
             <TableHeader>
               <TableRow>
                 <SortableTableHead sortKey="nome" currentSort={sortConfig} onSort={handleSort}>
-                  <Tooltip>
-                    <TooltipTrigger className="cursor-pointer">Produto</TooltipTrigger>
-                    <TooltipContent><p>Nome base do produto. Clique para ordenar.</p></TooltipContent>
-                  </Tooltip>
+                  Produto
                 </SortableTableHead>
                 <SortableTableHead sortKey="marca" currentSort={sortConfig} onSort={handleSort}>
-                  <Tooltip>
-                    <TooltipTrigger className="cursor-pointer">Marca</TooltipTrigger>
-                    <TooltipContent><p>Marca (Fornecedor) do produto. Clique para ordenar.</p></TooltipContent>
-                  </Tooltip>
+                  Marca
                 </SortableTableHead>
-
                 <TableHead>
                   <Tooltip>
                     <TooltipTrigger className="cursor-default font-semibold">Cor</TooltipTrigger>
@@ -747,6 +804,9 @@ useEffect(() => {
                               onSelect={() => handleEditFromMenu(produto)}
                             >
                               Editar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleAdjustFromMenu(produto)}>
+                              Ajuste Manual de Estoque
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               className="text-red-600"
@@ -829,7 +889,7 @@ useEffect(() => {
                     </SelectContent>
                   </Select>
                 </div>
-                <div><Label>Quantidade</Label><Input type="number" min={0} value={editingItem.quantidade} onChange={(e) => { const valor = Number(e.target.value); if (isNaN(valor) || valor < 0) return; setEditingItem(p => p ? {...p, quantidade: Number(e.target.value)} : null)}} /></div>
+                <div><Label>Quantidade</Label><Input type="number" value={editingItem.quantidade} disabled className="bg-muted cursor-not-allowed" /></div>
                 <div><Label>Valor de Custo (R$)</Label><Input type="text" value={formatCurrency(editingItem.valorCusto)} onChange={(e) => setEditingItem(p => p ? {...p, valorCusto: e.target.value} : null)} /></div>
                 <div><Label>Valor de Venda (R$)</Label><Input type="text" value={formatCurrency(editingItem.valorVenda)} onChange={(e) => setEditingItem(p => p ? {...p, valorVenda: e.target.value} : null)} /></div>
                 <div><Label>Estoque Mínimo</Label><Input type="number" min={0} value={editingItem.estoqueMin} onChange={(e) => { const valor = Number(e.target.value); if (isNaN(valor) || valor < 0) return; setEditingItem(p => p ? {...p, estoqueMin: Number(e.target.value)} : null)}} /></div>
@@ -844,6 +904,57 @@ useEffect(() => {
               </DialogFooter>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isAdjustModalOpen} onOpenChange={setIsAdjustModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Ajuste Manual de Estoque</DialogTitle>
+            <DialogDescription>
+               Use esta função para corrigir divergências entre o sistema e o estoque físico real.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {adjustingItem && (
+             <div className="py-4 space-y-4">
+                <div className="p-3 bg-muted rounded-md text-sm">
+                    <p><strong>Produto:</strong> {adjustingItem.nome}</p>
+                    <p><strong>Variante:</strong> {adjustingItem.cor.nome} - {adjustingItem.tamanho?.nome || 'Único'}</p>
+                    <p><strong>Estoque Atual no Sistema:</strong> {adjustingItem.quantidade}</p>
+                </div>
+
+                <div className="space-y-2">
+                    <Label htmlFor="novaQtd">Nova Quantidade Real (Contagem Física)</Label>
+                    <Input 
+                        id="novaQtd"
+                        type="number" 
+                        min={0}
+                        value={adjustForm.novaQuantidade}
+                        onChange={(e) => setAdjustForm(prev => ({ ...prev, novaQuantidade: Number(e.target.value) }))}
+                        className="text-lg font-bold"
+                    />
+                </div>
+
+                <div className="space-y-2">
+                    <Label htmlFor="motivoAjuste">Motivo do Ajuste*</Label>
+                    <Input 
+                        id="motivoAjuste"
+                        placeholder="Ex: Perda, Roubo, Contagem incorreta..."
+                        value={adjustForm.motivo}
+                        onChange={(e) => setAdjustForm(prev => ({ ...prev, motivo: e.target.value }))}
+                    />
+                </div>
+             </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAdjustModalOpen(false)}>Cancelar</Button>
+            <Button onClick={handleAdjustStock} disabled={isSubmitting || !adjustForm.motivo}>
+              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Confirmar Ajuste
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
