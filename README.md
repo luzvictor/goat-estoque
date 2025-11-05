@@ -17,7 +17,7 @@ Este projeto foi construído com foco em uma arquitetura moderna, robusta e esca
 -   **Banco de Dados:** [PostgreSQL](https://www.postgresql.org/)
 
 ---
-
+ 
 ## 🚀 Como Instalar e Rodar o Projeto
 
 Siga os passos abaixo para configurar e executar o projeto em seu ambiente de desenvolvimento local.
