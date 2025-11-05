@@ -5,11 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
-import { Loader2, PlusCircle, Trash2, MoreHorizontal, ChevronsUpDown, Check, UserPlus } from "lucide-react";
+import { Loader2, PlusCircle, Trash2, MoreHorizontal, UserPlus, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -35,6 +34,46 @@ const MESES = [
   { nome: 'Outubro', valor: 10 }, { nome: 'Novembro', valor: 11 }, { nome: 'Dezembro', valor: 12 },
 ];
 const ANOS = [new Date().getFullYear(), new Date().getFullYear() - 1, new Date().getFullYear() - 2];
+
+const normalizeText = (text: any): string => {
+  if (!text) return '';
+  return String(text)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") 
+    .trim();
+};
+
+const SortableTableHead = ({ children, sortKey, currentSort, onSort }: {
+  children: React.ReactNode;
+  sortKey: string;
+  currentSort: { key: string; direction: 'asc' | 'desc' } | null;
+  onSort: (key: string) => void;
+}) => {
+  const isSorted = currentSort?.key === sortKey;
+  const Icon = isSorted ? (currentSort.direction === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown;
+
+  return (
+    <TableHead>
+      <Button
+        variant="ghost"
+        onClick={() => onSort(sortKey)}
+        className="hover:bg-transparent p-0 flex items-center gap-1 font-semibold"
+      >
+        {children}
+        <Icon className="h-4 w-4" />
+      </Button>
+    </TableHead>
+  );
+};
+
+const getTodayString = () => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 export default function PedidosPageClient() {
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
@@ -65,8 +104,25 @@ export default function PedidosPageClient() {
   const [selectedStatus, setSelectedStatus] = useState<string>("Todos");
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [orderDate, setOrderDate] = useState<string>(getTodayString());
 
   const [productSearch, setProductSearch] = useState("");
+
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+
+  const [productResults, setProductResults] = useState<any[]>([]);
+
+  const [descontoValor, setDescontoValor] = useState<string>("");
+  const [descontoPorcento, setDescontoPorcento] = useState<string>("");
+
+  const handleSort = (key: string) => {
+    setSortConfig((current) => {
+      if (current?.key === key && current.direction === 'asc') {
+        return { key, direction: 'desc' };
+      }
+      return { key, direction: 'asc' };
+    });
+  };
 
   const produtosDisponiveis = useMemo(() => {
     return produtosBase.flatMap(base =>
@@ -80,16 +136,6 @@ export default function PedidosPageClient() {
       }))
     );
   }, [produtosBase]);
-
-  const filteredProducts = useMemo(() => {
-    if (productSearch.length < 2) return [];
-    const searchLower = productSearch.toLowerCase();
-    return produtosDisponiveis.filter(p =>
-      p.nome.toLowerCase().includes(searchLower) ||
-      p.marca.nome.toLowerCase().includes(searchLower) ||
-      p.sku?.toLowerCase().includes(searchLower)
-    );
-  }, [productSearch, produtosDisponiveis]);
 
 
   useEffect(() => {
@@ -109,6 +155,45 @@ export default function PedidosPageClient() {
     return () => clearTimeout(timerId);
   }, [clienteSearch]);
 
+  useEffect(() => {
+    const fetchProdutos = async () => {
+      if (productSearch.length < 2) {
+        setProductResults([]);
+        return;
+      }
+      setIsLoading(true);
+      try {
+
+        const response = await fetch(`/api/produtos?search=${productSearch}&limit=20`); 
+        if (response.ok) {
+          const dataWrapper = await response.json();
+
+          const produtosRaw = dataWrapper.data || dataWrapper; 
+
+          const flattenedResults = produtosRaw.flatMap((base: ProdutoBase) =>
+            base.variantes.map((variante) => ({
+              ...variante,
+              id_produto_base: base.id_produto_base,
+              nome: base.nome,
+              categoria: base.categoria,
+              marca: base.marca,
+              sku: variante.sku ?? "",
+            }))
+          );
+          setProductResults(flattenedResults);
+        }
+      } catch (error) {
+        console.error("Erro ao buscar produtos:", error);
+        toast.error("Erro na busca de produtos");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    const timerId = setTimeout(fetchProdutos, 300);
+    return () => clearTimeout(timerId);
+  }, [productSearch]);
+
   const fetchInitialData = useCallback(async (page = 1) => {
     setIsLoading(true);
     try {
@@ -122,6 +207,11 @@ export default function PedidosPageClient() {
       if (selectedStatus && selectedStatus !== "Todos") {
         const normalizedStatus = selectedStatus === "Concluído" ? "Concluido" : selectedStatus;
         params.append("status", normalizedStatus);
+      }
+
+      if (sortConfig) {
+        params.append('sortKey', sortConfig.key);
+        params.append('sortDirection', sortConfig.direction);
       }
 
       const [pedidosRes, produtosRes] = await Promise.all([
@@ -146,7 +236,45 @@ export default function PedidosPageClient() {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedMonth, selectedYear, selectedStatus]);
+  }, [selectedMonth, selectedYear, selectedStatus, sortConfig]);
+
+  const handleDescontoValorChange = (valorStr: string) => {
+    if (valorStr === "") {
+      setDescontoValor("");
+      setDescontoPorcento("");
+      return;
+    }
+
+    const regex = /^\d*[.,]?\d{0,2}$/;
+    if (!regex.test(valorStr)) return;
+
+    setDescontoValor(valorStr);
+
+    const valor = parseFloat(valorStr.replace(',', '.'));
+    if (!isNaN(valor) && subtotalPedido > 0) {
+       const novaPorcentagem = (valor / subtotalPedido) * 100;
+       setDescontoPorcento(novaPorcentagem.toFixed(2).replace('.', ','));
+    }
+  };
+
+  const handleDescontoPorcentoChange = (porcentoStr: string) => {
+    if (porcentoStr === "") {
+        setDescontoPorcento("");
+        setDescontoValor("");
+        return;
+    }
+
+    const regex = /^\d*[.,]?\d{0,4}$/; 
+    if (!regex.test(porcentoStr)) return;
+    
+    setDescontoPorcento(porcentoStr);
+
+    const porcento = parseFloat(porcentoStr.replace(',', '.'));
+    if (!isNaN(porcento)) {
+        const novoValor = (subtotalPedido * porcento) / 100;
+        setDescontoValor(novoValor.toFixed(2).replace('.', ','));
+    }
+  };
 
   useEffect(() => {
     fetchInitialData(currentPage);
@@ -158,7 +286,7 @@ export default function PedidosPageClient() {
     } else {
       fetchInitialData(1);
     }
-  }, [selectedMonth, selectedYear, selectedStatus, fetchInitialData]);
+  }, [selectedMonth, selectedYear, selectedStatus, sortConfig, fetchInitialData]);
 
 
   
@@ -210,6 +338,10 @@ export default function PedidosPageClient() {
     setSelectedVariant("");
     setItemQuantity(1);
     setSelectedCliente(null);
+    setProductSearch("");
+    setDescontoValor("");
+    setDescontoPorcento("");
+    setOrderDate(getTodayString());
     setClienteSearch("");
     setClienteResults([]);
     setNewClienteForm({ nome: "", cpf: "", endereco: "", telefone: "" });
@@ -224,7 +356,10 @@ export default function PedidosPageClient() {
 
 
   function handleAddItemToOrder() {
-    const produto = produtosDisponiveis.find(p => p.id_variante === selectedVariant);
+    const produto = 
+      produtosDisponiveis.find(p => p.id_variante === selectedVariant) || 
+      productResults.find(p => p.id_variante === selectedVariant);
+
     if (!produto || itemQuantity <= 0) {
       toast.warning("Dados inválidos", { description: "Selecione um produto e uma quantidade válida." });
       return;
@@ -262,7 +397,10 @@ export default function PedidosPageClient() {
     setIsSubmitting(true);
     const body = {
       clienteId: selectedCliente ? selectedCliente.id_cliente : null,
-      produtos: newOrderItems.map(item => ({ varianteId: item.varianteId, quantidade: item.quantidade }))
+      produtos: newOrderItems.map(item => ({ varianteId: item.varianteId, quantidade: item.quantidade })),
+      data: orderDate ? new Date(orderDate).toISOString() : new Date().toISOString(),
+      desconto: descontoNumerico, 
+      valorTotal: totalFinal,
     };
     try {
       const response = await fetch('/api/pedidos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -304,7 +442,16 @@ export default function PedidosPageClient() {
   }
 
 
-  const totalPedido = useMemo(() => newOrderItems.reduce((acc, item) => acc + (item.quantidade * item.precoUnitario), 0), [newOrderItems]);
+  const subtotalPedido = useMemo(() => newOrderItems.reduce((acc, item) => acc + (item.quantidade * item.precoUnitario), 0), [newOrderItems]);
+
+  const descontoNumerico = useMemo(() => {
+    const valor = parseFloat(descontoValor.replace(',', '.'));
+    return isNaN(valor) ? 0 : valor;
+  }, [descontoValor]);
+
+  const totalFinal = useMemo(() => {
+    return Math.max(0, subtotalPedido - descontoNumerico);
+  }, [subtotalPedido, descontoNumerico]);
   
   const getStatusVariant = (status: string): "default" | "secondary" | "destructive" | "outline" => {
     switch (status) {
@@ -320,7 +467,11 @@ export default function PedidosPageClient() {
 
   const selectedProductName = useMemo(() => {
   if (!selectedVariant) return "";
-  const produto = produtosDisponiveis.find(p => p.id_variante === selectedVariant);
+
+  const produto = 
+    produtosDisponiveis.find(p => p.id_variante === selectedVariant) ||
+    productResults.find(p => p.id_variante === selectedVariant);
+
   if (!produto) return "";
 
   const marcaNome = produto.marca?.nome ?? "";
@@ -328,7 +479,7 @@ export default function PedidosPageClient() {
   const tamanhoNome = produto.tamanho?.nome ?? "Único";
 
   return `${marcaNome} - ${produto.nome} (${corNome}, ${tamanhoNome})`;
-}, [selectedVariant, produtosDisponiveis]);
+}, [selectedVariant, produtosDisponiveis, productResults]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -396,169 +547,267 @@ export default function PedidosPageClient() {
             
             <Dialog open={isCreateModalOpen} onOpenChange={setCreateModalOpen}>
               <Tooltip>
-                  <TooltipTrigger asChild>
-                    <DialogTrigger asChild>
-                      <Button className="bg-accent text-accent-foreground hover:bg-accent/90 gap-1"><PlusCircle className="h-4 w-4" /> Novo Pedido</Button>
-                    </DialogTrigger>
-                  </TooltipTrigger>
-                  <TooltipContent><p>Criar um novo pedido de venda.</p></TooltipContent>
-                </Tooltip>
-              <DialogContent className="max-w-4xl">
+                <TooltipTrigger asChild>
+                  <DialogTrigger asChild>
+                    <Button className="bg-accent text-accent-foreground hover:bg-accent/90 gap-1">
+                      <PlusCircle className="h-4 w-4" /> Novo Pedido
+                    </Button>
+                  </DialogTrigger>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Criar um novo pedido de venda.</p>
+                </TooltipContent>
+              </Tooltip>
+              <DialogContent className="max-h-[90vh] overflow-y-auto max-w-4xl">
                 <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2">
-                      Criar Novo Pedido
-                      <ContextHelp
-                        title="Criação de Pedido"
-                        content={
-                          <ul className="list-disc pl-4 space-y-1 text-sm">
-                            <li>Selecione um cliente existente ou cadastre um novo.</li>
-                            <li>Busque e adicione produtos ao pedido.</li>
-                            <li>O estoque será abatido automaticamente ao finalizar.</li>
-                          </ul>
-                        }
-                      />
-                    </DialogTitle>
-                  </DialogHeader>
-                
-                <div className="pt-4 space-y-2">
-                  <Label className="flex items-center gap-1.5">
-                      Cliente (Opcional)
-                      <ContextHelp content="Busque o cliente por nome ou CPF. Se não for encontrado, você pode cadastrá-lo rapidamente." />
-                  </Label>
-                  {selectedCliente ? (
-                    <div className="flex items-center justify-between p-3 border rounded-md bg-muted">
-                      <p className="font-medium">{selectedCliente.nome} {selectedCliente.cpf ? `- ${selectedCliente.cpf}` : ''}</p>
-                      <Button variant="ghost" size="sm" onClick={() => setSelectedCliente(null)}>Trocar</Button>
-                    </div>
-                  ) : (
-                    <div className="relative">
+                  <DialogTitle className="flex items-center gap-2">
+                    Criar Novo Pedido
+                    <ContextHelp
+                      title="Criação de Pedido"
+                      content={
+                        <ul className="list-disc pl-4 space-y-1 text-sm">
+                          <li>Informe a data do pedido (padrão é hoje).</li>
+                          <li>Selecione um cliente existente ou cadastre um novo.</li>
+                          <li>Busque e adicione produtos ao pedido.</li>
+                          <li>O estoque será abatido automaticamente ao finalizar.</li>
+                        </ul>
+                      }
+                    />
+                  </DialogTitle>
+                </DialogHeader>
+
+                <div className="pt-4 space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="order-date">Data do Pedido</Label>
                       <Input
-                        placeholder="Buscar por nome ou CPF..."
-                        value={clienteSearch}
-                        onChange={(e) => setClienteSearch(e.target.value)}
+                        id="order-date"
+                        type="date"
+                        value={orderDate}
+                        onChange={(e) => setOrderDate(e.target.value)}
                       />
-                      {clienteSearch.length >= 2 && (
-                        <div className="absolute w-full mt-1 bg-background border rounded-md shadow-lg z-10 max-h-60 overflow-y-auto">
-                          {clienteResults.length > 0 ? (
-                            clienteResults.map((cliente) => (
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-1.5">
+                        Cliente (Opcional)
+                        <ContextHelp content="Busque o cliente por nome ou CPF." />
+                      </Label>
+                      {selectedCliente ? (
+                        <div className="flex items-center justify-between p-3 border rounded-md bg-muted h-10">
+                          <p className="font-medium text-sm truncate">
+                            {selectedCliente.nome} {selectedCliente.cpf ? `- ${selectedCliente.cpf}` : ""}
+                          </p>
+                          <Button variant="ghost" size="sm" className="h-8" onClick={() => setSelectedCliente(null)}>
+                            Trocar
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="relative">
+                          <Input
+                            placeholder="Buscar por nome ou CPF..."
+                            value={clienteSearch}
+                            onChange={(e) => setClienteSearch(e.target.value)}
+                          />
+                          {clienteSearch.length >= 2 && (
+                            <div className="absolute w-full mt-1 bg-background border rounded-md shadow-lg z-10 max-h-60 overflow-y-auto">
+                              {clienteResults.length > 0 ? (
+                                clienteResults.map((cliente) => (
+                                  <div
+                                    key={cliente.id_cliente}
+                                    className="p-2 hover:bg-muted cursor-pointer"
+                                    onClick={() => {
+                                      setSelectedCliente(cliente);
+                                      setClienteSearch(cliente.nome);
+                                      setClienteResults([]);
+                                    }}
+                                  >
+                                    <p className="text-sm font-medium">{cliente.nome}</p>
+                                    {cliente.cpf && <p className="text-xs text-muted-foreground">{cliente.cpf}</p>}
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="p-2 text-center text-sm text-muted-foreground">
+                                  Nenhum cliente encontrado.
+                                </div>
+                              )}
                               <div
-                                key={cliente.id_cliente}
-                                className="p-2 hover:bg-muted cursor-pointer"
+                                className="p-2 flex items-center gap-2 justify-center text-sm text-accent-foreground/80 hover:bg-muted cursor-pointer font-medium border-t"
                                 onClick={() => {
-                                  setSelectedCliente(cliente);
-                                  setClienteSearch(cliente.nome);
-                                  setClienteResults([]);
+                                  setNewClienteForm({ nome: clienteSearch, cpf: "", endereco: "", telefone: "" });
+                                  setIsNewClienteModalOpen(true);
                                 }}
                               >
-                                <p>{cliente.nome}</p>
-                                {cliente.cpf && <p className="text-xs text-muted-foreground">{cliente.cpf}</p>}
+                                <UserPlus className="h-4 w-4" /> Cadastrar novo cliente: "{clienteSearch}"
                               </div>
-                            ))
-                          ) : (
-                            <div className="p-2 text-center text-sm text-muted-foreground">
-                              Nenhum cliente encontrado.
                             </div>
                           )}
-                          <div
-                            className="p-2 flex items-center gap-2 justify-center text-sm text-accent-foreground/80 hover:bg-muted cursor-pointer font-medium"
-                            onClick={() => {
-                                setNewClienteForm({ nome: clienteSearch, cpf: "", endereco: "", telefone: "" });
-                                setIsNewClienteModalOpen(true);
-                            }}
-                          >
-                            <UserPlus className="h-4 w-4"/> Cadastrar novo cliente: "{clienteSearch}"
-                          </div>
                         </div>
                       )}
                     </div>
-                  )}
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
-                  <div className="space-y-4">
-                    <h3 className="font-semibold">Adicionar Item ao Pedido</h3>
-                    <div className="space-y-2">
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4 border-t">
+                    <div className="space-y-4">
+                      <h3 className="font-semibold">Adicionar Item ao Pedido</h3>
+                      <div className="space-y-2">
                         <Label>Produto</Label>
                         {selectedVariant ? (
-                            <div className="flex items-center justify-between p-3 border rounded-md bg-muted">
-                                <p className="font-medium text-sm">{selectedProductName}</p>
-                                <Button variant="ghost" size="sm" onClick={() => setSelectedVariant("")}>Trocar</Button>
-                            </div>
+                          <div className="flex items-center justify-between p-3 border rounded-md bg-muted">
+                            <p className="font-medium text-sm">{selectedProductName}</p>
+                            <Button variant="ghost" size="sm" onClick={() => setSelectedVariant("")}>
+                              Trocar
+                            </Button>
+                          </div>
                         ) : (
-                            <div className="relative">
-                                <Input
-                                    placeholder="Buscar produto por nome, marca ou SKU..."
-                                    value={productSearch}
-                                    onChange={(e) => setProductSearch(e.target.value)}
-                                />
-                                {productSearch.length >= 2 && (
-                                    <div className="absolute w-full mt-1 bg-background border rounded-md shadow-lg z-20 max-h-60 overflow-y-auto">
-                                        {filteredProducts.length > 0 ? (
-                                            filteredProducts.map((produto) => (
-                                                <div
-                                                    key={produto.id_variante}
-                                                    className="p-2 hover:bg-muted cursor-pointer"
-                                                    onClick={() => {
-                                                        setSelectedVariant(produto.id_variante);
-                                                        setProductSearch(""); // Limpa a busca
-                                                    }}
-                                                >
-                                                    <p className="text-sm font-medium">{produto.marca.nome} - {produto.nome}</p>
-                                                    <p className="text-xs text-muted-foreground">
-                                                        {produto.cor.nome}, {produto.tamanho?.nome || 'Único'} - Estoque: {produto.quantidade}
-                                                    </p>
-                                                </div>
-                                            ))
-                                        ) : (
-                                            <div className="p-2 text-center text-sm text-muted-foreground">
-                                                Nenhum produto encontrado.
-                                            </div>
-                                        )}
+                          <div className="relative">
+                            <Input
+                              placeholder="Buscar produto por nome, marca ou SKU..."
+                              value={productSearch}
+                              onChange={(e) => setProductSearch(e.target.value)}
+                            />
+                            {productSearch.length >= 2 && (
+                              <div className="absolute w-full mt-1 bg-background border rounded-md shadow-lg z-20 max-h-60 overflow-y-auto">
+                                {productResults.length > 0 ? (
+                                  productResults.map((produto) => (
+                                    <div
+                                      key={produto.id_variante}
+                                      className="p-2 hover:bg-muted cursor-pointer"
+                                      onClick={() => {
+                                        setSelectedVariant(produto.id_variante);
+                                      }}
+                                    >
+                                      <p className="text-sm font-medium">
+                                        {produto.marca.nome} - {produto.nome}
+                                      </p>
+                                      <p className="text-xs text-muted-foreground">
+                                        {produto.cor.nome}, {produto.tamanho?.nome || "Único"} - Estoque:{" "}
+                                        {produto.quantidade}
+                                      </p>
                                     </div>
+                                  ))
+                                ) : (
+                                  <div className="p-2 text-center text-sm text-muted-foreground">
+                                    Nenhum produto encontrado.
+                                  </div>
                                 )}
-                            </div>
+                              </div>
+                            )}
+                          </div>
                         )}
+                      </div>
+                      <div>
+                        <Label>Quantidade</Label>
+                        <Input
+                          type="number"
+                          value={itemQuantity}
+                          onChange={(e) => setItemQuantity(Number(e.target.value))}
+                          min={1}
+                        />
+                      </div>
+                      <Button onClick={handleAddItemToOrder} className="w-full">
+                        Adicionar Item
+                      </Button>
                     </div>
-                    <div><Label>Quantidade</Label><Input type="number" value={itemQuantity} onChange={e => setItemQuantity(Number(e.target.value))} min={1}/></div>
-                    <Button onClick={handleAddItemToOrder} className="w-full">Adicionar Item</Button>
-                  </div>
-                  <div className="space-y-2">
-                    <h3 className="font-semibold flex items-center gap-1.5">
+                    <div className="space-y-2">
+                      <h3 className="font-semibold flex items-center gap-1.5">
                         Itens no Pedido
                         <ContextHelp content="Lista de itens adicionados a este pedido. O valor total é calculado automaticamente." />
                       </h3>
-                    <div className="border rounded-lg p-2 h-64 overflow-y-auto">
-                      {newOrderItems.length === 0 ? ( <p className="text-sm text-muted-foreground text-center pt-4">Nenhum item.</p> ) : (
-                        <div className="space-y-2">
-                          {newOrderItems.map(item => (
-                            <div key={item.varianteId} className="flex justify-between items-center text-sm p-2 bg-muted/50 rounded">
-                              <div>
-                                <p className="font-medium">{item.nome}</p>
-                                <p>Qtd: {item.quantidade} x {formatCurrency(item.precoUnitario)}</p>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <p className="font-semibold">{formatCurrency(item.quantidade * item.precoUnitario)}</p>
-                                <Tooltip>
+                      <div className="border rounded-lg p-2 h-64 overflow-y-auto">
+                        {newOrderItems.length === 0 ? (
+                          <p className="text-sm text-muted-foreground text-center pt-4">Nenhum item.</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {newOrderItems.map((item) => (
+                              <div
+                                key={item.varianteId}
+                                className="flex justify-between items-center text-sm p-2 bg-muted/50 rounded"
+                              >
+                                <div>
+                                  <p className="font-medium">{item.nome}</p>
+                                  <p>
+                                    Qtd: {item.quantidade} x {formatCurrency(item.precoUnitario)}
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <p className="font-semibold">
+                                    {formatCurrency(item.quantidade * item.precoUnitario)}
+                                  </p>
+                                  <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleRemoveItem(item.varianteId)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-6 w-6"
+                                        onClick={() => handleRemoveItem(item.varianteId)}
+                                      >
+                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                      </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent><p>Remover item do pedido</p></TooltipContent>
+                                    <TooltipContent>
+                                      <p>Remover item do pedido</p>
+                                    </TooltipContent>
                                   </Tooltip>
+                                </div>
                               </div>
-                            </div>
-                          ))}
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div className="space-y-4 pt-4 border-t">
+                          <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="desconto-reais">Desconto (R$)</Label>
+                            <Input
+                              id="desconto-reais"
+                              placeholder="0,00"
+                              value={descontoValor}
+                              onChange={(e) => handleDescontoValorChange(e.target.value)}
+                              disabled={subtotalPedido <= 0}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="desconto-porcento">%</Label>
+                            <Input
+                              id="desconto-porcento"
+                              placeholder="0%"
+                              value={descontoPorcento}
+                              onChange={(e) => handleDescontoPorcentoChange(e.target.value)}
+                              disabled={subtotalPedido <= 0}
+                            />
+                          </div>
                         </div>
-                      )}
-                    </div>
-                    <div className="flex justify-between font-bold text-lg pt-2 border-t">
-                      <p>Total:</p>
-                      <p>{formatCurrency(totalPedido)}</p>
+
+                        <div className="space-y-1.5 text-sm">
+                          <div className="flex justify-between text-muted-foreground">
+                            <p>Subtotal:</p>
+                            <p>{formatCurrency(subtotalPedido)}</p>
+                          </div>
+                          
+                          {descontoNumerico > 0 && (
+                            <div className="flex justify-between text-destructive">
+                              <p>Desconto:</p>
+                              <p>- {formatCurrency(descontoNumerico)}</p>
+                            </div>
+                          )}
+
+                          <div className="flex justify-between font-bold text-lg pt-2 border-t">
+                            <p>Total Final:</p>
+                            <p>{formatCurrency(totalFinal)}</p>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => setCreateModalOpen(false)}>Cancelar</Button>
-                  <Button onClick={handleCreateOrder} disabled={isSubmitting || newOrderItems.length === 0}>
+                  <Button variant="outline" onClick={() => setCreateModalOpen(false)}>
+                    Cancelar
+                  </Button>
+                  <Button
+                    onClick={handleCreateOrder}
+                    disabled={isSubmitting || newOrderItems.length === 0}
+                  >
                     {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                     Finalizar Pedido
                   </Button>
@@ -570,44 +819,26 @@ export default function PedidosPageClient() {
         </CardHeader>
         <CardContent>
           <Table>
-            <TableHeader><TableRow>
-                <TableHead>
-                  <Tooltip>
-                    <TooltipTrigger className="cursor-default">Data</TooltipTrigger>
-                    <TooltipContent><p>Data da criação do pedido.</p></TooltipContent>
-                  </Tooltip>
-                </TableHead>
-                <TableHead>
-                  <Tooltip>
-                    <TooltipTrigger className="cursor-default">Cliente</TooltipTrigger>
-                    <TooltipContent><p>Cliente associado ao pedido.</p></TooltipContent>
-                  </Tooltip>
-                </TableHead>
-                <TableHead>
-                  <Tooltip>
-                    <TooltipTrigger className="cursor-default">Status</TooltipTrigger>
-                    <TooltipContent><p>Status atual do pedido.</p></TooltipContent>
-                  </Tooltip>
-                </TableHead>
-                <TableHead>
-                  <Tooltip>
-                    <TooltipTrigger className="cursor-default">Itens</TooltipTrigger>
-                    <TooltipContent><p>Quantidade total de itens no pedido.</p></TooltipContent>
-                  </Tooltip>
-                </TableHead>
-                <TableHead className="text-right">
-                  <Tooltip>
-                    <TooltipTrigger className="cursor-default">Valor Total</TooltipTrigger>
-                    <TooltipContent><p>Valor total do pedido.</p></TooltipContent>
-                  </Tooltip>
-                </TableHead>
-                <TableHead className="text-right">
-                  <Tooltip>
-                    <TooltipTrigger className="cursor-default">Ações</TooltipTrigger>
-                    <TooltipContent><p>Ações rápidas para o pedido.</p></TooltipContent>
-                  </Tooltip>
-                </TableHead>
-            </TableRow></TableHeader>
+            <TableHeader>
+            <TableRow>
+              <SortableTableHead sortKey="data" currentSort={sortConfig} onSort={handleSort}>
+                <Tooltip><TooltipTrigger className="cursor-pointer">Data</TooltipTrigger><TooltipContent><p>Data da criação do pedido. Clique para ordenar.</p></TooltipContent></Tooltip>
+              </SortableTableHead>
+              <SortableTableHead sortKey="cliente" currentSort={sortConfig} onSort={handleSort}>
+                <Tooltip><TooltipTrigger className="cursor-pointer">Cliente</TooltipTrigger><TooltipContent><p>Cliente associado ao pedido. Clique para ordenar.</p></TooltipContent></Tooltip>
+              </SortableTableHead>
+              <SortableTableHead sortKey="status" currentSort={sortConfig} onSort={handleSort}>
+                <Tooltip><TooltipTrigger className="cursor-pointer">Status</TooltipTrigger><TooltipContent><p>Status atual do pedido. Clique para ordenar.</p></TooltipContent></Tooltip>
+              </SortableTableHead>
+              <TableHead>
+                <Tooltip><TooltipTrigger className="cursor-default font-semibold">Itens</TooltipTrigger><TooltipContent><p>Quantidade total de itens no pedido.</p></TooltipContent></Tooltip>
+              </TableHead>
+              <TableHead className="text-right">
+                <Tooltip><TooltipTrigger className="cursor-default font-semibold">Valor Total</TooltipTrigger><TooltipContent><p>Valor total do pedido.</p></TooltipContent></Tooltip>
+              </TableHead>
+              <TableHead className="text-right"><Tooltip><TooltipTrigger className="cursor-default font-semibold">Ações</TooltipTrigger><TooltipContent><p>Ações rápidas para o pedido.</p></TooltipContent></Tooltip></TableHead>
+            </TableRow>
+          </TableHeader>
             <TableBody>
                 {isLoading ? (<TableRow><TableCell colSpan={7} className="text-center h-24">Carregando...</TableCell></TableRow>) :
                 pedidos.length > 0 ? (

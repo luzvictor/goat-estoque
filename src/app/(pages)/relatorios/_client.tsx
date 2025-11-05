@@ -71,10 +71,10 @@ export default function RelatoriosPageClient() {
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
       <div className="flex flex-col md:flex-row items-center justify-between space-y-2 md:space-y-0">
         <div className="flex items-center gap-2">
-          <h2 className="text-3xl font-bold tracking-tight text-accent">Relatório de Lucratividade</h2>
+          <h2 className="text-3xl font-bold tracking-tight text-accent">Análise de Resultado Bruto</h2>
           <ContextHelp
-            title="Relatório de Lucratividade"
-            content="Este relatório calcula o faturamento, custos, lucro bruto e margem de lucro com base nos pedidos 'Concluídos' dentro do período selecionado."
+            title="Análise de Resultado"
+            content="Este relatório apresenta a receita bruta, o custo das mercadorias vendidas e o resultado bruto operacional do período selecionado."
           />
         </div>
         <Tooltip>
@@ -94,8 +94,8 @@ export default function RelatoriosPageClient() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-1.5">
-                Faturamento Total
-                <ContextHelp content="Soma do 'valorVenda' de todos os itens em pedidos 'Concluídos' no período." />
+                FReceita Bruta de Vendas
+                <ContextHelp content="Valor total das vendas realizadas (pedidos concluídos) no período." />
               </CardTitle>
               <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
@@ -106,8 +106,8 @@ export default function RelatoriosPageClient() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-1.5">
-                Custo Total dos Produtos
-                <ContextHelp content="Soma do 'valorCusto' de todos os itens em pedidos 'Concluídos' no período." />
+                Custo da Mercadoria Vendida (CMV)
+                <ContextHelp content="Custo de aquisição original dos produtos que foram vendidos no período." />
               </CardTitle>
               <TrendingDown className="h-4 w-4 text-destructive" />
             </CardHeader>
@@ -118,8 +118,8 @@ export default function RelatoriosPageClient() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-1.5">
-                Lucro Bruto
-                <ContextHelp content="Cálculo: (Faturamento Total - Custo Total)." />
+                Resultado Bruto
+                <ContextHelp content="Receita Bruta menos o CMV. Representa o ganho operacional antes de outras despesas (aluguel, impostos, etc)." />
               </CardTitle>
               <TrendingUp className="h-4 w-4 text-emerald-600" />
             </CardHeader>
@@ -130,8 +130,8 @@ export default function RelatoriosPageClient() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-1.5">
-                Margem de Lucro
-                <ContextHelp content="Cálculo: (Lucro Bruto / Faturamento Total) * 100." />
+                Margem Bruta
+                <ContextHelp content="Percentual do Resultado Bruto em relação à Receita Bruta. Indica a eficiência na venda dos produtos." />
               </CardTitle>
               <Percent className="h-4 w-4 text-muted-foreground" />
             </CardHeader>

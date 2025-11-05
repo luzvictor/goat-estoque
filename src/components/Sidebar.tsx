@@ -14,7 +14,6 @@ const navLinks = [
   { href: "/pedidos", label: "Pedidos", icon: ShoppingCart },
   { href: "/relatorios", label: "Relatorios", icon: AreaChart },
   { href: "/clientes", label: "Clientes", icon: Users },
-  { href: "/configuracoes", label: "Configurações", icon: Settings },
 ];
 
 export function Sidebar() {
@@ -48,26 +47,26 @@ export function Sidebar() {
           />
         </Link>
       </div>
-      <div className="flex-1 overflow-auto py-2">
-        <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
+      <div className="flex-1 overflow-auto py-4">
+        <nav className="grid items-start px-2 text-base font-medium lg:px-4 gap-2"> 
           {navLinks.map((link) => (
             <Link
               key={link.href}
               href={link.href}
               className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 transition-all hover:text-sidebar-primary",
+                "flex items-center gap-3 rounded-lg px-3 py-3 transition-all hover:text-sidebar-primary",
                 pathname.startsWith(link.href) && "bg-sidebar-accent text-sidebar-primary"
               )}
             >
-              <link.icon className="h-4 w-4" />
+              <link.icon className="h-5 w-5" />
               {link.label}
             </Link>
           ))}
         </nav>
       </div>
       <div className="mt-auto p-4 border-t border-sidebar-border">
-        <Button variant="ghost" className="w-full justify-start gap-2 hover:bg-sidebar-accent hover:text-sidebar-primary" onClick={handleLogout}>
-            <LogOut className="h-4 w-4" />
+        <Button variant="ghost" className="w-full justify-start gap-3 px-3 py-3 text-base hover:bg-sidebar-accent hover:text-sidebar-primary" onClick={handleLogout}>
+            <LogOut className="h-5 w-5" />
             Sair
         </Button>
       </div>

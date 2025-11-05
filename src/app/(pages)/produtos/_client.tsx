@@ -33,7 +33,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
-import { MoreHorizontal, Loader2, PlusCircle } from "lucide-react";
+import { MoreHorizontal, Loader2, PlusCircle, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -58,6 +58,29 @@ const parseCurrency = (value: string | number): number => {
   if (typeof value === 'number') return value;
   if (typeof value !== 'string' || value.trim() === '') return 0;
   return parseFloat(value.replace(/\./g, "").replace(",", "."));
+};
+
+const SortableTableHead = ({ children, sortKey, currentSort, onSort }: {
+  children: React.ReactNode;
+  sortKey: string;
+  currentSort: { key: string; direction: 'asc' | 'desc' } | null;
+  onSort: (key: string) => void;
+}) => {
+  const isSorted = currentSort?.key === sortKey;
+  const Icon = isSorted ? (currentSort.direction === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown;
+
+  return (
+    <TableHead>
+      <Button
+        variant="ghost"
+        onClick={() => onSort(sortKey)}
+        className="hover:bg-transparent p-0 flex items-center gap-1 font-semibold"
+      >
+        {children}
+        <Icon className="h-4 w-4" />
+      </Button>
+    </TableHead>
+  );
 };
 
 type Attribute = { id: string; nome: string; };
@@ -114,6 +137,27 @@ export default function ProdutosPageClient() {
 
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+
+  const resetCreateForm = useCallback(() => {
+  setFormBase({ nome: "", categoriaId: "", marcaId: "" });
+  setFormVariante({ corId: "", tamanhoId: "", quantidade: 0, valorCusto: "", valorVenda: "", estoqueMin: 0, sku: "" });
+}, []);
+
+const resetEntryForm = useCallback(() => {
+  setEntryForm({ varianteId: "", quantidade: 0, numeroNota: "", data: new Date().toISOString().split("T")[0], marcaId: "" });
+  setFilteredProdutos([]);
+}, []);
+
+  const handleSort = (key: string) => {
+    setSortConfig((current) => {
+      if (current?.key === key && current.direction === 'asc') {
+        return { key, direction: 'desc' };
+      }
+      return { key, direction: 'asc' };
+    });
+  };
+
   const fetchAllData = useCallback(async (page = 1) => {
     setIsLoading(true);
     try {
@@ -122,6 +166,10 @@ export default function ProdutosPageClient() {
         limit: '10',
         search: searchTerm,
       });
+      if (sortConfig) {
+        params.append('sortKey', sortConfig.key);
+        params.append('sortDirection', sortConfig.direction);
+      }
       const [produtosRes, marcasRes, categoriasRes, coresRes, tamanhosRes] = await Promise.all([
         fetch(`/api/produtos?${params.toString()}`),
         fetch("/api/marcas"),
@@ -142,12 +190,16 @@ export default function ProdutosPageClient() {
       setCategorias(await categoriasRes.json());
       setCores(await coresRes.json());
       setTamanhos(await tamanhosRes.json());
-    } catch (error: any) {
-      toast.error("Erro ao carregar dados", { description: error.message });
+    } catch (error: unknown) {
+      let errorMessage = "Ocorreu um erro inesperado.";
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      toast.error("Erro ao carregar dados", { description: errorMessage });
     } finally {
       setIsLoading(false);
     }
-  }, [searchTerm]);
+  }, [searchTerm, sortConfig]);
 
 const handleRegisterEntry = async () => {
   if (!entryForm.varianteId || !entryForm.marcaId || entryForm.quantidade <= 0 || !entryForm.numeroNota) {
@@ -168,7 +220,6 @@ const handleRegisterEntry = async () => {
 
     toast.success("Entrada registrada com sucesso!");
     setEntryModalOpen(false);
-    setEntryForm({ varianteId: "", quantidade: 0, numeroNota: "", data: new Date().toISOString().split("T")[0], marcaId: "" });
     await fetchAllData(currentPage); // atualiza tabela
   } catch (error: any) {
     toast.error("Erro ao registrar entrada", { description: error.message });
@@ -192,6 +243,23 @@ const handleRegisterEntry = async () => {
     }, 500);
     return () => clearTimeout(timerId);
   }, [searchTerm]);
+  useEffect(() => {
+  if (!isCreateModalOpen) {
+    resetCreateForm();
+  }
+}, [isCreateModalOpen, resetCreateForm]);
+
+useEffect(() => {
+  if (!isEntryModalOpen) {
+    const timer = setTimeout(() => resetEntryForm(), 150);
+    return () => clearTimeout(timer);
+  }
+}, [isEntryModalOpen, resetEntryForm]);
+useEffect(() => {
+  if (!isEditModalOpen) {
+     setEditingItem(null);
+  }
+}, [isEditModalOpen]);
 
   const displayProdutos = useMemo(() => {
     return produtosBase.flatMap(base =>
@@ -383,8 +451,6 @@ const handleRegisterEntry = async () => {
                     onChange={(e) => setEntryForm(prev => ({ ...prev, data: e.target.value }))}
                   />
                 </div>
-
-                {/* Fornecedor / Marca */}
                 <div>
                   <Label htmlFor="marcaEntrada" className="flex items-center gap-1.5">
                         Fornecedor (Marca)
@@ -411,7 +477,6 @@ const handleRegisterEntry = async () => {
                   </Select>
                 </div>
 
-                {/* Produto / Variante */}
                 <div>
                   <Label htmlFor="variante-select" className="flex items-center gap-1.5">
                       Produto (Variante)
@@ -434,7 +499,6 @@ const handleRegisterEntry = async () => {
                   </Select>
                 </div>
 
-                {/* Quantidade */}
                 <div>
                   <Label htmlFor="quantidade_entrada">Quantidade</Label>
                   <Input
@@ -450,7 +514,6 @@ const handleRegisterEntry = async () => {
                     />
                 </div>
 
-                {/* Nota Fiscal */}
                 <div>
                   <Label htmlFor="numeroNota" className="flex items-center gap-1.5">
                         Nota Fiscal
@@ -617,12 +680,43 @@ const handleRegisterEntry = async () => {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead><Tooltip><TooltipTrigger className="cursor-default">Produto</TooltipTrigger><TooltipContent><p>Nome base do produto.</p></TooltipContent></Tooltip></TableHead>
-                <TableHead><Tooltip><TooltipTrigger className="cursor-default">Marca</TooltipTrigger><TooltipContent><p>Marca (Fornecedor) do produto.</p></TooltipContent></Tooltip></TableHead>
-                <TableHead><Tooltip><TooltipTrigger className="cursor-default">Cor</TooltipTrigger><TooltipContent><p>Cor específica desta variante.</p></TooltipContent></Tooltip></TableHead>
-                <TableHead><Tooltip><TooltipTrigger className="cursor-default">Tamanho</TooltipTrigger><TooltipContent><p>Tamanho específico desta variante.</p></TooltipContent></Tooltip></TableHead>
-                <TableHead className="text-center"><Tooltip><TooltipTrigger className="cursor-default">Estoque</TooltipTrigger><TooltipContent><p>Quantidade atual em estoque.</p></TooltipContent></Tooltip></TableHead>
-                <TableHead className="text-right"><Tooltip><TooltipTrigger className="cursor-default">Ações</TooltipTrigger><TooltipContent><p>Editar ou excluir esta variante.</p></TooltipContent></Tooltip></TableHead>
+                <SortableTableHead sortKey="nome" currentSort={sortConfig} onSort={handleSort}>
+                  <Tooltip>
+                    <TooltipTrigger className="cursor-pointer">Produto</TooltipTrigger>
+                    <TooltipContent><p>Nome base do produto. Clique para ordenar.</p></TooltipContent>
+                  </Tooltip>
+                </SortableTableHead>
+                <SortableTableHead sortKey="marca" currentSort={sortConfig} onSort={handleSort}>
+                  <Tooltip>
+                    <TooltipTrigger className="cursor-pointer">Marca</TooltipTrigger>
+                    <TooltipContent><p>Marca (Fornecedor) do produto. Clique para ordenar.</p></TooltipContent>
+                  </Tooltip>
+                </SortableTableHead>
+
+                <TableHead>
+                  <Tooltip>
+                    <TooltipTrigger className="cursor-default font-semibold">Cor</TooltipTrigger>
+                    <TooltipContent><p>Cor específica desta variante.</p></TooltipContent>
+                  </Tooltip>
+                </TableHead>
+                <TableHead>
+                  <Tooltip>
+                    <TooltipTrigger className="cursor-default font-semibold">Tamanho</TooltipTrigger>
+                    <TooltipContent><p>Tamanho específico desta variante.</p></TooltipContent>
+                  </Tooltip>
+                </TableHead>
+                <TableHead className="text-center">
+                  <Tooltip>
+                    <TooltipTrigger className="cursor-default font-semibold">Estoque</TooltipTrigger>
+                    <TooltipContent><p>Quantidade atual em estoque.</p></TooltipContent>
+                  </Tooltip>
+                </TableHead>
+                <TableHead className="text-right">
+                  <Tooltip>
+                    <TooltipTrigger className="cursor-default font-semibold">Ações</TooltipTrigger>
+                    <TooltipContent><p>Editar ou excluir esta variante.</p></TooltipContent>
+                  </Tooltip>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -692,10 +786,7 @@ const handleRegisterEntry = async () => {
       {/* Modal de Edição */}
       <Dialog
         open={isEditModalOpen}
-        onOpenChange={(open) => {
-          setEditModalOpen(open);
-          if (!open) setEditingItem(null);
-        }}
+        onOpenChange={setEditModalOpen}
       >
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           {editingItem && (

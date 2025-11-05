@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { toast } from "sonner";
 import { Role } from '@prisma/client'; 
 import { Badge } from '@/components/ui/badge';
-import { Loader2, UserPlus, Users, Check, X } from 'lucide-react'; 
+import { Loader2, UserPlus, Users, Check, X, Trash2 } from 'lucide-react'; 
 import { passwordRules, passwordErrorMessages } from '@/lib/validations';
 import { ContextHelp } from "@/components/ui/ContextHelp";
 import {
@@ -92,6 +92,32 @@ export default function GestaoUsuariosPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [passwordValidation, setPasswordValidation] = useState<PasswordValidationState>({} as PasswordValidationState);
+  const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<Usuario | null>(null);
+
+  const handleDeleteUser = async () => {
+    if (!userToDelete) return;
+    setIsSubmitting(true);
+    try {
+      const res = await fetch(`/api/usuarios/${userToDelete.id_usuario}`, {
+        method: 'DELETE',
+      });
+
+      if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || 'Falha ao excluir usuário.');
+      }
+
+      toast.success(`Usuário "${userToDelete.nome}" excluído com sucesso!`);
+      await fetchUsuarios();
+    } catch (error: any) {
+      toast.error(error.message);
+    } finally {
+      setIsSubmitting(false);
+      setIsDeleteAlertOpen(false);
+      setUserToDelete(null);
+    }
+  };
 
   const fetchUsuarios = async () => {
     setIsLoading(true);
@@ -191,7 +217,6 @@ export default function GestaoUsuariosPage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* ... (o formulário é idêntico) ... */}
               <div className="space-y-2">
                 <Label htmlFor="nome">Nome</Label>
                 <Input id="nome" placeholder="Nome completo" value={nome} onChange={(e) => setNome(e.target.value)} required />
@@ -279,6 +304,7 @@ export default function GestaoUsuariosPage() {
                       <TooltipContent><p>Nível de acesso do usuário no sistema.</p></TooltipContent>
                     </Tooltip>
                   </TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -299,9 +325,22 @@ export default function GestaoUsuariosPage() {
                     <TableCell className="font-medium">{user.nome}</TableCell>
                     <TableCell>{user.email}</TableCell>
                     <TableCell>
-                        <Badge variant={user.role === Role.ADM ? 'destructive' : 'outline'}>
-                            {user.role}
-                        </Badge>
+                      <Badge variant={user.role === Role.ADM ? 'destructive' : 'outline'}>
+                        {user.role}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-destructive hover:text-destructive/90"
+                        onClick={() => {
+                            setUserToDelete(user);
+                            setIsDeleteAlertOpen(true);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}

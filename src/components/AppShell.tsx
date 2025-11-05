@@ -8,10 +8,13 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Button } from '@/components/ui/button';
 import { CircleUser } from 'lucide-react';
 import { toast } from 'sonner';
+import { useEffect, useState } from 'react';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<{ nome: string; email: string } | null>(null);
   const pathname = usePathname();
   const router = useRouter();
+
 
   async function handleLogout() {
     try {
@@ -30,11 +33,30 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   if (pathname === '/login') {
     return (
-      <div className="flex min-h-screen items-center justify-center p-4 bg-muted">
+      <div className="flex h-full w-full items-center justify-center p-4 bg-muted overflow-y-auto">
         {children}
       </div>
     );
   }
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        const response = await fetch('/api/session');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.autenticado && data.usuario) {
+             setUser(data.usuario);
+          }
+        }
+      } catch (error) {
+        console.error("Falha ao carregar sessão", error);
+      }
+    };
+
+    if (pathname !== '/login') {
+      fetchUserData();
+    }
+  }, [pathname]);
 
   return (
     <div className="grid h-screen w-full overflow-hidden md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
@@ -59,8 +81,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <span className="sr-only">Toggle user menu</span>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuLabel>Minha Conta</DropdownMenuLabel>
+              <DropdownMenuContent align="end" className="w-56">
+                {user ? (
+                   <div className="flex flex-col space-y-1 p-2 leading-none">
+                     <p className="font-medium text-sm">{user.nome}</p>
+                     <p className="w-full truncate text-xs text-muted-foreground">
+                       {user.email}
+                     </p>
+                   </div>
+                ) : (
+                  <DropdownMenuLabel>Minha Conta</DropdownMenuLabel>
+                )}
+
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => router.push('/configuracoes')} className="cursor-pointer">
                   Configurações
@@ -80,5 +112,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </div>
     </div>
   );
+}
+
+function setUser(usuario: any) {
+  throw new Error('Function not implemented.');
 }
 
