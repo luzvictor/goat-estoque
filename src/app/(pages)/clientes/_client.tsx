@@ -8,7 +8,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
-import { Loader2, PlusCircle, Trash2, MoreHorizontal, Edit, Eye } from "lucide-react"; // 1. Importado o ícone Eye
+import { Loader2, PlusCircle, Trash2, MoreHorizontal, Edit, Eye } from "lucide-react";
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PaginationEllipsis } from "@/components/ui/pagination";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Cliente } from "@/types";
 import { toast } from "sonner";
@@ -34,13 +35,27 @@ export default function ClientesPageClient() {
   
   const [viewingCliente, setViewingCliente] = useState<Cliente | null>(null);
 
-  const fetchClientes = useCallback(async () => {
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+
+  const fetchClientes = useCallback(async (page = 1) => {
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/clientes?search=${searchTerm}`);
+      const response = await fetch(`/api/clientes?search=${searchTerm}&page=${page}&limit=10`);
       if (!response.ok) throw new Error("Falha ao buscar clientes");
-      const data = await response.json();
-      setClientes(data);
+      
+      const result = await response.json();
+      
+      if (Array.isArray(result)) {
+         setClientes(result);
+      } else {
+         setClientes(result.data || []);
+         setCurrentPage(result.pagination.currentPage);
+         setTotalPages(result.pagination.totalPages);
+         setTotalItems(result.pagination.totalItems);
+      }
+
     } catch (error: any) {
       toast.error("Erro de Rede", { description: error.message });
     } finally {
@@ -52,6 +67,16 @@ export default function ClientesPageClient() {
     const timerId = setTimeout(() => fetchClientes(), 300);
     return () => clearTimeout(timerId);
   }, [searchTerm, fetchClientes]);
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    const timerId = setTimeout(() => {
+      fetchClientes(currentPage);
+    }, 300);
+    return () => clearTimeout(timerId);
+  }, [currentPage, searchTerm, fetchClientes]);
 
   const openModal = (cliente: Cliente | null = null) => {
     if (cliente) {
@@ -240,6 +265,40 @@ export default function ClientesPageClient() {
             </TableBody>
           </Table>
         </CardContent>
+        <CardFooter className="flex justify-between items-center">
+          <div className="text-xs text-muted-foreground">
+            Mostrando <strong>{clientes.length}</strong> de <strong>{totalItems}</strong> clientes.
+          </div>
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious 
+                  href="#" 
+                  onClick={(e) => { e.preventDefault(); setCurrentPage(p => Math.max(1, p - 1)); }}
+                  className={currentPage === 1 ? 'pointer-events-none opacity-50' : ''}
+                />
+              </PaginationItem>
+              
+              <PaginationItem>
+                <PaginationLink isActive>{currentPage}</PaginationLink>
+              </PaginationItem>
+
+              {totalPages > currentPage + 1 && (
+                <PaginationItem>
+                  <PaginationEllipsis />
+                </PaginationItem>
+              )}
+
+              <PaginationItem>
+                <PaginationNext
+                  href="#"
+                  onClick={(e) => { e.preventDefault(); setCurrentPage(p => Math.min(totalPages, p + 1)); }}
+                  className={currentPage === totalPages ? 'pointer-events-none opacity-50' : ''}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </CardFooter>
       </Card>
 
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>

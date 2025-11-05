@@ -8,24 +8,31 @@ export type Cliente = {
   telefone?: string | null; 
 };
 
+type Atributo = {
+  id: string;
+  nome: string;
+};
+
 export type VarianteProduto = {
-  sku: string;
+  sku: string | null;
   id_variante: string;
-  cor: { nome: string };
-  tamanho?: { nome: string };
+  cor: Atributo;
+  tamanho?: Atributo | null;
   valorVenda: number;
   quantidade: number;
+  estoqueMin: number;
   produtoBase: {
     nome: string;
-    marca: string;
+    marca: Atributo;
+    categoria?: Atributo;
   }
 };
 
 export type ProdutoBase = {
   id_produto_base: string;
   nome: string;
-  categoria: string;
-  marca: { nome: string };
+  categoria: Atributo;
+  marca: Atributo;
   variantes: VarianteProduto[];
 };
 

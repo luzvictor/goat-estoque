@@ -23,7 +23,7 @@ export default function RootLayout({
     <html lang="pt-BR" suppressHydrationWarning>
       <body
         className={cn(
-          "min-h-screen bg-background font-sans antialiased",
+          "h-screen w-screen overflow-hidden bg-background font-sans antialiased",
           inter.variable
         )}
       >

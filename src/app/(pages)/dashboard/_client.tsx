@@ -62,7 +62,6 @@ function KpiCard({ title, value, change, icon: Icon, format = (v) => v.toString(
             </CardTitle>
           </TooltipTrigger>
           <TooltipContent>
-            {/* O conteúdo do tooltip é definido aqui, no componente pai */}
             {title === "Faturamento Total" && <p>Valor total de vendas (faturamento bruto) no período selecionado.</p>}
             {title === "Total de Pedidos" && <p>Número total de pedidos realizados no período.</p>}
             {title === "Ticket Médio" && <p>Valor médio por pedido (Faturamento / Total de Pedidos).</p>}
@@ -171,7 +170,7 @@ export default function DashboardClient() {
   }
 
   return (
-    <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
+    <div className="space-y-4 p-4 md:p-8 pt-6">
       <div className="flex items-center justify-between space-y-2">
         <h2 className="text-3xl font-bold tracking-tight text-accent flex items-center gap-2">
           Dashboard

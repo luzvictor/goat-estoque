@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogFooter,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   DropdownMenu,
@@ -33,7 +34,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
-import { MoreHorizontal, Loader2, PlusCircle } from "lucide-react";
+import { MoreHorizontal, Loader2, PlusCircle, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -58,6 +59,36 @@ const parseCurrency = (value: string | number): number => {
   if (typeof value === 'number') return value;
   if (typeof value !== 'string' || value.trim() === '') return 0;
   return parseFloat(value.replace(/\./g, "").replace(",", "."));
+};
+
+const SortableTableHead = ({ children, sortKey, currentSort, onSort }: {
+  children: React.ReactNode;
+  sortKey: string;
+  currentSort: { key: string; direction: 'asc' | 'desc' } | null;
+  onSort: (key: string) => void;
+}) => {
+  const isSorted = currentSort?.key === sortKey;
+  const Icon = isSorted ? (currentSort.direction === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown;
+
+  return (
+    <TableHead>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            onClick={() => onSort(sortKey)}
+            className="hover:bg-transparent p-0 flex items-center gap-1 font-semibold"
+          >
+            {children}
+            <Icon className="h-4 w-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>Clique para ordenar por {typeof children === 'string' ? children.toLowerCase() : sortKey}</p>
+        </TooltipContent>
+      </Tooltip>
+    </TableHead>
+  );
 };
 
 type Attribute = { id: string; nome: string; };
@@ -114,6 +145,36 @@ export default function ProdutosPageClient() {
 
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+
+  const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
+  const [adjustingItem, setAdjustingItem] = useState<ProdutoDisplay | null>(null);
+  const [adjustForm, setAdjustForm] = useState({ novaQuantidade: 0, motivo: "" });
+
+  const resetAdjustForm = useCallback(() => {
+      setAdjustForm({ novaQuantidade: 0, motivo: "" });
+      setAdjustingItem(null);
+  }, []);
+
+  const resetCreateForm = useCallback(() => {
+  setFormBase({ nome: "", categoriaId: "", marcaId: "" });
+  setFormVariante({ corId: "", tamanhoId: "", quantidade: 0, valorCusto: "", valorVenda: "", estoqueMin: 0, sku: "" });
+}, []);
+
+const resetEntryForm = useCallback(() => {
+  setEntryForm({ varianteId: "", quantidade: 0, numeroNota: "", data: new Date().toISOString().split("T")[0], marcaId: "" });
+  setFilteredProdutos([]);
+}, []);
+
+  const handleSort = (key: string) => {
+    setSortConfig((current) => {
+      if (current?.key === key && current.direction === 'asc') {
+        return { key, direction: 'desc' };
+      }
+      return { key, direction: 'asc' };
+    });
+  };
+
   const fetchAllData = useCallback(async (page = 1) => {
     setIsLoading(true);
     try {
@@ -122,6 +183,10 @@ export default function ProdutosPageClient() {
         limit: '10',
         search: searchTerm,
       });
+      if (sortConfig) {
+        params.append('sortKey', sortConfig.key);
+        params.append('sortDirection', sortConfig.direction);
+      }
       const [produtosRes, marcasRes, categoriasRes, coresRes, tamanhosRes] = await Promise.all([
         fetch(`/api/produtos?${params.toString()}`),
         fetch("/api/marcas"),
@@ -142,12 +207,16 @@ export default function ProdutosPageClient() {
       setCategorias(await categoriasRes.json());
       setCores(await coresRes.json());
       setTamanhos(await tamanhosRes.json());
-    } catch (error: any) {
-      toast.error("Erro ao carregar dados", { description: error.message });
+    } catch (error: unknown) {
+      let errorMessage = "Ocorreu um erro inesperado.";
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      toast.error("Erro ao carregar dados", { description: errorMessage });
     } finally {
       setIsLoading(false);
     }
-  }, [searchTerm]);
+  }, [searchTerm, sortConfig]);
 
 const handleRegisterEntry = async () => {
   if (!entryForm.varianteId || !entryForm.marcaId || entryForm.quantidade <= 0 || !entryForm.numeroNota) {
@@ -168,8 +237,7 @@ const handleRegisterEntry = async () => {
 
     toast.success("Entrada registrada com sucesso!");
     setEntryModalOpen(false);
-    setEntryForm({ varianteId: "", quantidade: 0, numeroNota: "", data: new Date().toISOString().split("T")[0], marcaId: "" });
-    await fetchAllData(currentPage); // atualiza tabela
+    await fetchAllData(currentPage);
   } catch (error: any) {
     toast.error("Erro ao registrar entrada", { description: error.message });
   } finally {
@@ -192,6 +260,27 @@ const handleRegisterEntry = async () => {
     }, 500);
     return () => clearTimeout(timerId);
   }, [searchTerm]);
+  useEffect(() => {
+  if (!isCreateModalOpen) {
+    resetCreateForm();
+  }
+}, [isCreateModalOpen, resetCreateForm]);
+
+useEffect(() => {
+  if (!isEntryModalOpen) {
+    const timer = setTimeout(() => resetEntryForm(), 150);
+    return () => clearTimeout(timer);
+  }
+}, [isEntryModalOpen, resetEntryForm]);
+useEffect(() => {
+  if (!isEditModalOpen) {
+     setEditingItem(null);
+  }
+}, [isEditModalOpen]);
+
+useEffect(() => {
+    if (!isAdjustModalOpen) resetAdjustForm();
+  }, [isAdjustModalOpen, resetAdjustForm]);
 
   const displayProdutos = useMemo(() => {
     return produtosBase.flatMap(base =>
@@ -237,6 +326,49 @@ const handleRegisterEntry = async () => {
       setIsSubmitting(false);
     }
   }
+
+  async function handleAdjustStock() {
+    if (!adjustingItem) return;
+    if (!adjustForm.motivo.trim()) {
+        toast.error("Informe o motivo do ajuste.");
+        return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const response = await fetch("/api/ajuste-estoque", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            varianteId: adjustingItem.id_variante,
+            novaQuantidade: Number(adjustForm.novaQuantidade),
+            motivo: adjustForm.motivo
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Falha ao ajustar estoque");
+      }
+
+      toast.success("Estoque ajustado com sucesso!");
+      setIsAdjustModalOpen(false);
+      fetchAllData(currentPage);
+    } catch (error: any) {
+      toast.error("Erro no ajuste", { description: error.message });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  const handleAdjustFromMenu = (produto: ProdutoDisplay) => {
+    setOpenMenuId(null);
+    setTimeout(() => {
+        setAdjustingItem(produto);
+        setAdjustForm({ novaQuantidade: produto.quantidade, motivo: "" });
+        setIsAdjustModalOpen(true);
+    }, 0);
+  };
 
   const openDeleteAlert = (produto: ProdutoDisplay) => {
     setVariantToDelete(produto);
@@ -383,8 +515,6 @@ const handleRegisterEntry = async () => {
                     onChange={(e) => setEntryForm(prev => ({ ...prev, data: e.target.value }))}
                   />
                 </div>
-
-                {/* Fornecedor / Marca */}
                 <div>
                   <Label htmlFor="marcaEntrada" className="flex items-center gap-1.5">
                         Fornecedor (Marca)
@@ -411,7 +541,6 @@ const handleRegisterEntry = async () => {
                   </Select>
                 </div>
 
-                {/* Produto / Variante */}
                 <div>
                   <Label htmlFor="variante-select" className="flex items-center gap-1.5">
                       Produto (Variante)
@@ -434,7 +563,6 @@ const handleRegisterEntry = async () => {
                   </Select>
                 </div>
 
-                {/* Quantidade */}
                 <div>
                   <Label htmlFor="quantidade_entrada">Quantidade</Label>
                   <Input
@@ -450,7 +578,6 @@ const handleRegisterEntry = async () => {
                     />
                 </div>
 
-                {/* Nota Fiscal */}
                 <div>
                   <Label htmlFor="numeroNota" className="flex items-center gap-1.5">
                         Nota Fiscal
@@ -617,12 +744,36 @@ const handleRegisterEntry = async () => {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead><Tooltip><TooltipTrigger className="cursor-default">Produto</TooltipTrigger><TooltipContent><p>Nome base do produto.</p></TooltipContent></Tooltip></TableHead>
-                <TableHead><Tooltip><TooltipTrigger className="cursor-default">Marca</TooltipTrigger><TooltipContent><p>Marca (Fornecedor) do produto.</p></TooltipContent></Tooltip></TableHead>
-                <TableHead><Tooltip><TooltipTrigger className="cursor-default">Cor</TooltipTrigger><TooltipContent><p>Cor específica desta variante.</p></TooltipContent></Tooltip></TableHead>
-                <TableHead><Tooltip><TooltipTrigger className="cursor-default">Tamanho</TooltipTrigger><TooltipContent><p>Tamanho específico desta variante.</p></TooltipContent></Tooltip></TableHead>
-                <TableHead className="text-center"><Tooltip><TooltipTrigger className="cursor-default">Estoque</TooltipTrigger><TooltipContent><p>Quantidade atual em estoque.</p></TooltipContent></Tooltip></TableHead>
-                <TableHead className="text-right"><Tooltip><TooltipTrigger className="cursor-default">Ações</TooltipTrigger><TooltipContent><p>Editar ou excluir esta variante.</p></TooltipContent></Tooltip></TableHead>
+                <SortableTableHead sortKey="nome" currentSort={sortConfig} onSort={handleSort}>
+                  Produto
+                </SortableTableHead>
+                <SortableTableHead sortKey="marca" currentSort={sortConfig} onSort={handleSort}>
+                  Marca
+                </SortableTableHead>
+                <TableHead>
+                  <Tooltip>
+                    <TooltipTrigger className="cursor-default font-semibold">Cor</TooltipTrigger>
+                    <TooltipContent><p>Cor específica desta variante.</p></TooltipContent>
+                  </Tooltip>
+                </TableHead>
+                <TableHead>
+                  <Tooltip>
+                    <TooltipTrigger className="cursor-default font-semibold">Tamanho</TooltipTrigger>
+                    <TooltipContent><p>Tamanho específico desta variante.</p></TooltipContent>
+                  </Tooltip>
+                </TableHead>
+                <TableHead className="text-center">
+                  <Tooltip>
+                    <TooltipTrigger className="cursor-default font-semibold">Estoque</TooltipTrigger>
+                    <TooltipContent><p>Quantidade atual em estoque.</p></TooltipContent>
+                  </Tooltip>
+                </TableHead>
+                <TableHead className="text-right">
+                  <Tooltip>
+                    <TooltipTrigger className="cursor-default font-semibold">Ações</TooltipTrigger>
+                    <TooltipContent><p>Editar ou excluir esta variante.</p></TooltipContent>
+                  </Tooltip>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -653,6 +804,9 @@ const handleRegisterEntry = async () => {
                               onSelect={() => handleEditFromMenu(produto)}
                             >
                               Editar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleAdjustFromMenu(produto)}>
+                              Ajuste Manual de Estoque
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               className="text-red-600"
@@ -692,10 +846,7 @@ const handleRegisterEntry = async () => {
       {/* Modal de Edição */}
       <Dialog
         open={isEditModalOpen}
-        onOpenChange={(open) => {
-          setEditModalOpen(open);
-          if (!open) setEditingItem(null);
-        }}
+        onOpenChange={setEditModalOpen}
       >
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           {editingItem && (
@@ -738,7 +889,7 @@ const handleRegisterEntry = async () => {
                     </SelectContent>
                   </Select>
                 </div>
-                <div><Label>Quantidade</Label><Input type="number" min={0} value={editingItem.quantidade} onChange={(e) => { const valor = Number(e.target.value); if (isNaN(valor) || valor < 0) return; setEditingItem(p => p ? {...p, quantidade: Number(e.target.value)} : null)}} /></div>
+                <div><Label>Quantidade</Label><Input type="number" value={editingItem.quantidade} disabled className="bg-muted cursor-not-allowed" /></div>
                 <div><Label>Valor de Custo (R$)</Label><Input type="text" value={formatCurrency(editingItem.valorCusto)} onChange={(e) => setEditingItem(p => p ? {...p, valorCusto: e.target.value} : null)} /></div>
                 <div><Label>Valor de Venda (R$)</Label><Input type="text" value={formatCurrency(editingItem.valorVenda)} onChange={(e) => setEditingItem(p => p ? {...p, valorVenda: e.target.value} : null)} /></div>
                 <div><Label>Estoque Mínimo</Label><Input type="number" min={0} value={editingItem.estoqueMin} onChange={(e) => { const valor = Number(e.target.value); if (isNaN(valor) || valor < 0) return; setEditingItem(p => p ? {...p, estoqueMin: Number(e.target.value)} : null)}} /></div>
@@ -753,6 +904,57 @@ const handleRegisterEntry = async () => {
               </DialogFooter>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isAdjustModalOpen} onOpenChange={setIsAdjustModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Ajuste Manual de Estoque</DialogTitle>
+            <DialogDescription>
+               Use esta função para corrigir divergências entre o sistema e o estoque físico real.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {adjustingItem && (
+             <div className="py-4 space-y-4">
+                <div className="p-3 bg-muted rounded-md text-sm">
+                    <p><strong>Produto:</strong> {adjustingItem.nome}</p>
+                    <p><strong>Variante:</strong> {adjustingItem.cor.nome} - {adjustingItem.tamanho?.nome || 'Único'}</p>
+                    <p><strong>Estoque Atual no Sistema:</strong> {adjustingItem.quantidade}</p>
+                </div>
+
+                <div className="space-y-2">
+                    <Label htmlFor="novaQtd">Nova Quantidade Real (Contagem Física)</Label>
+                    <Input 
+                        id="novaQtd"
+                        type="number" 
+                        min={0}
+                        value={adjustForm.novaQuantidade}
+                        onChange={(e) => setAdjustForm(prev => ({ ...prev, novaQuantidade: Number(e.target.value) }))}
+                        className="text-lg font-bold"
+                    />
+                </div>
+
+                <div className="space-y-2">
+                    <Label htmlFor="motivoAjuste">Motivo do Ajuste*</Label>
+                    <Input 
+                        id="motivoAjuste"
+                        placeholder="Ex: Perda, Roubo, Contagem incorreta..."
+                        value={adjustForm.motivo}
+                        onChange={(e) => setAdjustForm(prev => ({ ...prev, motivo: e.target.value }))}
+                    />
+                </div>
+             </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAdjustModalOpen(false)}>Cancelar</Button>
+            <Button onClick={handleAdjustStock} disabled={isSubmitting || !adjustForm.motivo}>
+              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Confirmar Ajuste
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

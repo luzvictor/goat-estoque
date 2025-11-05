@@ -15,8 +15,12 @@ export async function GET(request: Request) {
 
     const mes = searchParams.get('mes');
     const ano = searchParams.get('ano');
+
     const statusParam = searchParams.get('status'); 
-    let whereClause: any = {};
+    const sortKey = searchParams.get('sortKey');
+    const sortDirection = searchParams.get('sortDirection') as 'asc' | 'desc' | null;
+
+    let whereClause: Prisma.PedidoWhereInput = {};
 
     if (mes && ano) {
       const mesNumero = parseInt(mes);
@@ -31,6 +35,21 @@ export async function GET(request: Request) {
     if (statusParam && statusParam !== "Todos") {
       const normalizedStatus = statusParam === "Concluído" ? "Concluido" : statusParam;
       whereClause.status = normalizedStatus as StatusPedido;
+    }
+
+    let orderBy: Prisma.PedidoOrderByWithRelationInput | Prisma.PedidoOrderByWithRelationInput[] = { data: 'desc' };
+    if (sortKey && sortDirection) {
+      switch (sortKey) {
+        case 'data':
+          orderBy = { data: sortDirection };
+          break;
+        case 'cliente':
+          orderBy = { Cliente: { nome: sortDirection } };
+          break;
+        case 'status':
+          orderBy = { status: sortDirection };
+          break;
+      }
     }
 
     const [pedidos, total] = await prisma.$transaction([
@@ -52,7 +71,7 @@ export async function GET(request: Request) {
             }
           }
         },
-        orderBy: { data: 'desc' },
+        orderBy: orderBy,
         skip,
         take: limit,
       }),
@@ -75,7 +94,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { clienteId, produtos } = body;
+    const { clienteId, produtos, data } = body;
 
     if (!produtos || !Array.isArray(produtos) || produtos.length === 0) {
       return NextResponse.json({ error: "O pedido deve conter pelo menos um produto." }, { status: 400 });
@@ -93,6 +112,7 @@ export async function POST(request: Request) {
 
       const pedido = await tx.pedido.create({
         data: {
+          data: data ? new Date(data) : new Date(),
           clienteId: clienteId || null,
           produtos: {
             create: produtos.map((p: { varianteId: string, quantidade: number }) => ({

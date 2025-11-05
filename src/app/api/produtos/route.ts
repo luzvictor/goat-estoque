@@ -9,18 +9,37 @@ export async function GET(request: Request) {
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '10');
     const searchTerm = searchParams.get('search') || '';
+        const sortKey = searchParams.get('sortKey');
+    const sortDirection = searchParams.get('sortDirection') as 'asc' | 'desc' | null;
 
     const skip = (page - 1) * limit;
 
     const whereClause: Prisma.ProdutoBaseWhereInput = searchTerm
-  ? {
-      OR: [
-        { nome: { contains: searchTerm, mode: 'insensitive' } },
-        { marca: { nome: { contains: searchTerm, mode: 'insensitive' } } },
-        { categoria: { nome: { contains: searchTerm, mode: 'insensitive' } } },
-      ],
+      ? {
+          OR: [
+            { nome: { contains: searchTerm, mode: 'insensitive' } },
+            { marca: { nome: { contains: searchTerm, mode: 'insensitive' } } },
+            { categoria: { nome: { contains: searchTerm, mode: 'insensitive' } } },
+            { variantes: { some: { sku: { contains: searchTerm, mode: 'insensitive' } } } }
+          ],
+        }
+      : {};
+
+    let orderBy: Prisma.ProdutoBaseOrderByWithRelationInput | Prisma.ProdutoBaseOrderByWithRelationInput[] = { nome: 'asc' }; // Padrão
+
+    if (sortKey && sortDirection) {
+      switch (sortKey) {
+        case 'nome':
+          orderBy = { nome: sortDirection };
+          break;
+        case 'marca':
+          orderBy = { marca: { nome: sortDirection } };
+          break;
+        //
+        default:
+          orderBy = { nome: 'asc' };
+      }
     }
-  : {};
 
     const [produtos, total] = await prisma.$transaction([
       prisma.produtoBase.findMany({
@@ -30,10 +49,13 @@ export async function GET(request: Request) {
           categoria: true,
           variantes: {
             include: { cor: true, tamanho: true },
-            orderBy: { cor: { nome: 'asc' } },
+            orderBy: [
+                { cor: { nome: 'asc' } },
+                { tamanho: { nome: 'asc' } } 
+            ],
           },
         },
-        orderBy: { nome: 'asc' },
+        orderBy: orderBy,
         skip,
         take: limit,
       }),
