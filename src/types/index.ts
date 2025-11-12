@@ -40,6 +40,7 @@ export type Pedido = {
   id: string;
   data: string;
   status: string;
+  desconto: number | null;
   produtos: {
     id: string;
     quantidade: number;

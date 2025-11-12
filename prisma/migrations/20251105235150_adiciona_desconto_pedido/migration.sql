@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Pedido" ADD COLUMN     "desconto" DOUBLE PRECISION DEFAULT 0;

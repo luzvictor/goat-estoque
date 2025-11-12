@@ -94,7 +94,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { clienteId, produtos, data } = body;
+    const { clienteId, produtos, data, desconto } = body;
 
     if (!produtos || !Array.isArray(produtos) || produtos.length === 0) {
       return NextResponse.json({ error: "O pedido deve conter pelo menos um produto." }, { status: 400 });
@@ -114,6 +114,7 @@ export async function POST(request: Request) {
         data: {
           data: data ? new Date(data) : new Date(),
           clienteId: clienteId || null,
+          desconto: Number(desconto) || 0,
           produtos: {
             create: produtos.map((p: { varianteId: string, quantidade: number }) => ({
               varianteId: p.varianteId,

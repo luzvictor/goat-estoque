@@ -200,16 +200,17 @@ export default function DashboardClient() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-4 lg:col-span-3">
+        {/* CARD 1: Gráfico de Barras (Evolução) - Ocupa 4 de 7 colunas em telas grandes */}
+        <Card className="col-span-full lg:col-span-4">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                Vendas por Categoria
+                Evolução de Vendas
                 <ContextHelp
-                  title="Faturamento por Categoria"
-                  content="Este gráfico de pizza mostra a participação de cada categoria no faturamento total do período (apenas de pedidos concluídos)."
+                  title="Evolução de Vendas"
+                  content="Mostra o faturamento total por período (dia/mês) dentro do intervalo selecionado."
                 />
               </CardTitle>
-              <CardDescription>Distribuição de faturamento por categoria.</CardDescription>
+              <CardDescription>Faturamento ao longo do tempo.</CardDescription>
             </CardHeader>
           <CardContent className="pl-2">
             <ResponsiveContainer width="100%" height={350}>
@@ -217,20 +218,25 @@ export default function DashboardClient() {
                 <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
                 <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
                 <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `R$${value/1000}k`} />
-                <RechartsTooltip cursor={{fill: 'transparent'}} contentStyle={{ background: 'hsl(var(--accent))', border: '1px solid hsl(var(--border))', borderRadius: '0.5rem' }} formatter={(value: number) => formatCurrency(value)}/>
-                <Bar dataKey="Vendas" fill="var(--primary)" radius={[4, 4, 0, 0]} />
+                <RechartsTooltip cursor={{fill: 'transparent'}} contentStyle={{ background: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: '0.5rem' }} formatter={(value: number) => formatCurrency(value)}/>
+                <Bar dataKey="Vendas" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
-        <Card className="col-span-4 lg:col-span-3">
-            <CardHeader><CardTitle className="flex items-center gap-2">
-                Vendas por Categoria
+
+        {/* CARD 2: Gráfico de Pizza (Categorias) - Ocupa 3 de 7 colunas em telas grandes */}
+        <Card className="col-span-full lg:col-span-3">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                Por Categoria
                 <ContextHelp
                   title="Faturamento por Categoria"
-                  content="Este gráfico de pizza mostra a participação de cada categoria no faturamento total do período (apenas de pedidos concluídos)."
+                  content="Mostra a participação de cada categoria no faturamento total do período."
                 />
-              </CardTitle><CardDescription>Distribuição de faturamento por categoria.</CardDescription></CardHeader>
+              </CardTitle>
+              <CardDescription>Distribuição do faturamento.</CardDescription>
+            </CardHeader>
             <CardContent>
             <ResponsiveContainer width="100%" height={350}>
                 <PieChart>
@@ -251,7 +257,7 @@ export default function DashboardClient() {
                     </Pie>
                     <RechartsTooltip
                         contentStyle={{
-                            background: 'hsl(var(--background))',
+                            background: 'hsl(var(--popover))',
                             border: '1px solid hsl(var(--border))',
                             borderRadius: '0.5rem'
                         }}

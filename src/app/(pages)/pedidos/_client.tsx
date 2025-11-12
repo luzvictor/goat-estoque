@@ -114,6 +114,7 @@ export default function PedidosPageClient() {
 
   const [descontoValor, setDescontoValor] = useState<string>("");
   const [descontoPorcento, setDescontoPorcento] = useState<string>("");
+  const [tipoDescontoAtivo, setTipoDescontoAtivo] = useState<'valor' | 'porcentagem'>('valor');
 
   const handleSort = (key: string) => {
     setSortConfig((current) => {
@@ -249,6 +250,7 @@ export default function PedidosPageClient() {
     if (!regex.test(valorStr)) return;
 
     setDescontoValor(valorStr);
+    setTipoDescontoAtivo('valor');
 
     const valor = parseFloat(valorStr.replace(',', '.'));
     if (!isNaN(valor) && subtotalPedido > 0) {
@@ -268,6 +270,7 @@ export default function PedidosPageClient() {
     if (!regex.test(porcentoStr)) return;
     
     setDescontoPorcento(porcentoStr);
+    setTipoDescontoAtivo('porcentagem');
 
     const porcento = parseFloat(porcentoStr.replace(',', '.'));
     if (!isNaN(porcento)) {
@@ -275,6 +278,7 @@ export default function PedidosPageClient() {
         setDescontoValor(novoValor.toFixed(2).replace('.', ','));
     }
   };
+
 
   useEffect(() => {
     fetchInitialData(currentPage);
@@ -394,11 +398,15 @@ export default function PedidosPageClient() {
       toast.warning("Pedido vazio", { description: "Adicione pelo menos um item ao pedido." });
       return;
     }
+    if (descontoNumerico > subtotalPedido) {
+        toast.error("Desconto inválido", { description: "O valor do desconto não pode ser maior que o subtotal do pedido." });
+        return;
+    }
     setIsSubmitting(true);
     const body = {
       clienteId: selectedCliente ? selectedCliente.id_cliente : null,
       produtos: newOrderItems.map(item => ({ varianteId: item.varianteId, quantidade: item.quantidade })),
-      data: orderDate ? new Date(orderDate).toISOString() : new Date().toISOString(),
+      data: orderDate ? new Date(orderDate + "T00:00:00").toISOString() : new Date().toISOString(),
       desconto: descontoNumerico, 
       valorTotal: totalFinal,
     };
@@ -444,9 +452,32 @@ export default function PedidosPageClient() {
 
   const subtotalPedido = useMemo(() => newOrderItems.reduce((acc, item) => acc + (item.quantidade * item.precoUnitario), 0), [newOrderItems]);
 
+  useEffect(() => {
+      if (subtotalPedido === 0) {
+          setDescontoValor("");
+          setDescontoPorcento("");
+          return;
+      }
+
+      if (tipoDescontoAtivo === 'porcentagem' && descontoPorcento) {
+          const porcento = parseFloat(descontoPorcento.replace(',', '.'));
+          if (!isNaN(porcento)) {
+              const novoValor = (subtotalPedido * porcento) / 100;
+              setDescontoValor(novoValor.toFixed(2).replace('.', ','));
+          }
+      }
+      else if (tipoDescontoAtivo === 'valor' && descontoValor) {
+          const valor = parseFloat(descontoValor.replace(',', '.'));
+          if (!isNaN(valor)) {
+              const novaPorcentagem = (valor / subtotalPedido) * 100;
+              setDescontoPorcento(novaPorcentagem.toFixed(2).replace('.', ','));
+          }
+      }
+    }, [subtotalPedido]);
+
   const descontoNumerico = useMemo(() => {
     const valor = parseFloat(descontoValor.replace(',', '.'));
-    return isNaN(valor) ? 0 : valor;
+    return (isNaN(valor) || valor < 0) ? 0 : valor;
   }, [descontoValor]);
 
   const totalFinal = useMemo(() => {
@@ -645,6 +676,7 @@ export default function PedidosPageClient() {
                       )}
                     </div>
                   </div>
+                  </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4 border-t">
                     <div className="space-y-4">
@@ -793,11 +825,17 @@ export default function PedidosPageClient() {
 
                           <div className="flex justify-between font-bold text-lg pt-2 border-t">
                             <p>Total Final:</p>
-                            <p>{formatCurrency(totalFinal)}</p>
+                            <p className={descontoNumerico > subtotalPedido ? "text-destructive" : ""}>
+                              {descontoNumerico > subtotalPedido
+                                ? "Valor Inválido"
+                                : formatCurrency(totalFinal)}
+                            </p>
                           </div>
+                          {descontoNumerico > subtotalPedido && (
+                              <p className="text-xs text-destructive mt-1">O desconto não pode ser maior que o subtotal.</p>
+                          )}
                         </div>
                       </div>
-                    </div>
                   </div>
                 </div>
                 <DialogFooter>
@@ -806,7 +844,7 @@ export default function PedidosPageClient() {
                   </Button>
                   <Button
                     onClick={handleCreateOrder}
-                    disabled={isSubmitting || newOrderItems.length === 0}
+                    disabled={isSubmitting || newOrderItems.length === 0 || descontoNumerico > subtotalPedido}
                   >
                     {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                     Finalizar Pedido
@@ -873,7 +911,13 @@ export default function PedidosPageClient() {
                           </Tooltip>
                         </TableCell>
                         <TableCell>{pedido.produtos.reduce((acc, p) => acc + p.quantidade, 0)}</TableCell>  
-                        <TableCell className="text-right">{formatCurrency(pedido.produtos.reduce((acc, item) => acc + item.variante.valorVenda * item.quantidade, 0))}</TableCell>
+                        <TableCell className="text-right font-bold">
+                          {(() => {
+                            const subtotal = pedido.produtos.reduce((acc, item) => acc + item.variante.valorVenda * item.quantidade, 0);
+                            const desconto = pedido.desconto || 0;
+                            return formatCurrency(Math.max(0, subtotal - desconto));
+                          })()}
+                        </TableCell>
                         <TableCell className="text-right">
                            <Tooltip>
                             <TooltipTrigger asChild>

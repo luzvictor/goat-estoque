@@ -107,6 +107,8 @@ model Pedido {
   status    StatusPedido    @default(Pendente)
   produtos  PedidoProduto[] 
 
+  desconto    Float?   @default(0)
+
   clienteId String? 
  Cliente   Cliente? @relation(fields: [clienteId], references: [id_cliente], onDelete: SetNull)
 

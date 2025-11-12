@@ -50,7 +50,7 @@ export async function PUT(
     const statusAtual = pedidoAtual.status;
 
     const transicoesPermitidas: Record<string, string[]> = {
-      Pendente: ["Enviado", "Cancelado"],
+      Pendente: ["Enviado", "Concluido", "Cancelado"],
       Enviado: ["Concluido", "Cancelado"],
       Concluido: [],
       Cancelado: [],
@@ -127,15 +127,19 @@ export async function GET(
           include: {
             variante: {
               include: {
-                produtoBase: true,
                 cor: true,
                 tamanho: true,
-              },
-            },
-          },
-        },
-      },
-    });
+                produtoBase: {
+                  include: {
+                    marca: true
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+});
 
     if (!pedido) {
       return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 });
