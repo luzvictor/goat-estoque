@@ -168,6 +168,28 @@ export default function DashboardClient() {
   if (isLoading) {
     return <div className="flex items-center justify-center h-screen"><Loader2 className="h-8 w-8 animate-spin text-accent"/></div>;
   }
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        // Usamos as classes do shadcn diretamente. 
+        // Note o 'bg-popover' e 'text-popover-foreground'
+        <div className="rounded-lg border bg-popover p-2 text-sm shadow-sm text-popover-foreground">
+          
+          {/* O "label" é o item do XAxis (ex: a data ou nome da categoria) */}
+          <p className="font-bold">{label}</p>
+          
+          {/* O "payload" são os dados (ex: 'Vendas' e o valor) */}
+          {payload.map((entry: any, index: number) => (
+            <p key={`item-${index}`} style={{ color: entry.color || entry.fill }}>
+              {/* entry.name = "Vendas", entry.value = 5000 */}
+              {entry.name}: {formatCurrency(entry.value)}
+            </p>
+          ))}
+        </div>
+      );
+    }
+    return null;
+  };
 
   return (
     <div className="space-y-4 p-4 md:p-8 pt-6">
@@ -218,7 +240,10 @@ export default function DashboardClient() {
                 <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
                 <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
                 <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `R$${value/1000}k`} />
-                <RechartsTooltip cursor={{fill: 'transparent'}} contentStyle={{ background: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: '0.5rem' }} formatter={(value: number) => formatCurrency(value)}/>
+                <RechartsTooltip 
+                  cursor={{ fill: 'transparent' }}
+                  content={<CustomTooltip />} 
+                />
                 <Bar dataKey="Vendas" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -255,14 +280,7 @@ export default function DashboardClient() {
                             <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                     </Pie>
-                    <RechartsTooltip
-                        contentStyle={{
-                            background: 'hsl(var(--popover))',
-                            border: '1px solid hsl(var(--border))',
-                            borderRadius: '0.5rem'
-                        }}
-                        formatter={(value: number) => formatCurrency(value)}
-                    />
+                    <RechartsTooltip content={<CustomTooltip />} />
                     <Legend />
                 </PieChart>
             </ResponsiveContainer>

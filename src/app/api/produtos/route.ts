@@ -4,82 +4,99 @@ import { NextResponse } from "next/server";
 
 // GET: Listar todos os Produtos Base com suas Variantes
 export async function GET(request: Request) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '10');
-    const searchTerm = searchParams.get('search') || '';
-        const sortKey = searchParams.get('sortKey');
-    const sortDirection = searchParams.get('sortDirection') as 'asc' | 'desc' | null;
+ try {
+  const { searchParams } = new URL(request.url);
+  const page = parseInt(searchParams.get('page') || '1');
+  const limit = parseInt(searchParams.get('limit') || '10');
+  const searchTerm = searchParams.get('search') || ''; // Ex: "42 azul"
+  const sortKey = searchParams.get('sortKey');
+  const sortDirection = searchParams.get('sortDirection') as 'asc' | 'desc' | null;
 
-    const skip = (page - 1) * limit;
+  const skip = (page - 1) * limit;
 
-    const whereClause: Prisma.ProdutoBaseWhereInput = searchTerm
-      ? {
-          OR: [
-            { nome: { contains: searchTerm, mode: 'insensitive' } },
-            { marca: { nome: { contains: searchTerm, mode: 'insensitive' } } },
-            { categoria: { nome: { contains: searchTerm, mode: 'insensitive' } } },
-            { variantes: { some: { sku: { contains: searchTerm, mode: 'insensitive' } } } }
-          ],
+  let whereClause: Prisma.ProdutoBaseWhereInput = {}; 
+
+  if (searchTerm) {
+   const searchTerms = searchTerm.split(' ').filter(t => t.length > 0);
+
+   whereClause = {
+    AND: searchTerms.map(term => ({
+     
+     OR: [
+      { nome: { contains: term, mode: 'insensitive' } },
+      
+      { marca: { nome: { contains: term, mode: 'insensitive' } } },
+      { categoria: { nome: { contains: term, mode: 'insensitive' } } },
+      
+      { 
+       variantes: {
+        some: { 
+         OR: [
+          { sku: { contains: term, mode: 'insensitive' } },
+          { cor: { nome: { contains: term, mode: 'insensitive' } } },
+          { tamanho: { nome: { contains: term, mode: 'insensitive' } } }
+         ]
         }
-      : {};
-
-    let orderBy: Prisma.ProdutoBaseOrderByWithRelationInput | Prisma.ProdutoBaseOrderByWithRelationInput[] = { nome: 'asc' }; // Padrão
-
-    if (sortKey && sortDirection) {
-      switch (sortKey) {
-        case 'nome':
-          orderBy = { nome: sortDirection };
-          break;
-        case 'marca':
-          orderBy = { marca: { nome: sortDirection } };
-          break;
-        //
-        default:
-          orderBy = { nome: 'asc' };
+       }
       }
-    }
-
-    const [produtos, total] = await prisma.$transaction([
-      prisma.produtoBase.findMany({
-        where: whereClause,
-        include: {
-          marca: true,
-          categoria: true,
-          variantes: {
-            include: { cor: true, tamanho: true },
-            orderBy: [
-                { cor: { nome: 'asc' } },
-                { tamanho: { nome: 'asc' } } 
-            ],
-          },
-        },
-        orderBy: orderBy,
-        skip,
-        take: limit,
-      }),
-      prisma.produtoBase.count({ where: whereClause }),
-    ]);
-    const totalPages = Math.ceil(total / limit);
-
-    return NextResponse.json({
-      data: produtos,
-      pagination: {
-        totalItems: total,
-        totalPages,
-        currentPage: page,
-        pageSize: limit,
-      }
-    });
-    
-  } catch (error) {
-    console.error("Erro ao buscar produtos:", error);
-    return NextResponse.json(
-      { error: "Erro ao buscar produtos." },
-      { status: 500 }
-    );
+     ]
+    }))
+   };
   }
+  let orderBy: Prisma.ProdutoBaseOrderByWithRelationInput | Prisma.ProdutoBaseOrderByWithRelationInput[] = { nome: 'asc' }; // Padrão
+
+  if (sortKey && sortDirection) {
+   switch (sortKey) {
+    case 'nome':
+     orderBy = { nome: sortDirection };
+     break;
+    case 'marca':
+     orderBy = { marca: { nome: sortDirection } };
+     break;
+    default:
+     orderBy = { nome: 'asc' };
+   }
+  }
+
+  const [produtos, total] = await prisma.$transaction([
+   prisma.produtoBase.findMany({
+    where: whereClause,
+    include: {
+     marca: true,
+     categoria: true,
+     variantes: {
+      include: { cor: true, tamanho: true },
+      orderBy: [
+        { cor: { nome: 'asc' } },
+        { tamanho: { nome: 'asc' } } 
+      ],
+     },
+    },
+    orderBy: orderBy,
+    skip,
+    take: limit,
+   }),
+   prisma.produtoBase.count({ where: whereClause }),
+  ]);
+  const totalPages = Math.ceil(total / limit);
+
+  return NextResponse.json({
+   data: produtos,
+   pagination: {
+    totalItems: total,
+    totalPages,
+    currentPage: page,
+    pageSize: limit,
+   }
+  });
+  
+ } catch (error) {
+  console.error("Erro ao buscar produtos:", error);
+  return NextResponse.json(
+   { error: "Erro ao buscar produtos." },
+   { status: 500 }
+  );
+ }
 }
 // POST: Criar um novo Produto Base com suas Variantes
 export async function POST(request: Request) {

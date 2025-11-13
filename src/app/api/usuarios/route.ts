@@ -8,9 +8,9 @@ import { ZodError } from "zod";
 
 export async function GET(request: Request) {
     const usuarioLogado = await getUsuarioDaSessao();
-    if (usuarioLogado?.role !== Role.ADM) {
-         return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 });
-    }
+    if (!usuarioLogado) {
+    return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 });
+  }
 
     try {
         const usuarios = await prisma.usuario.findMany({
