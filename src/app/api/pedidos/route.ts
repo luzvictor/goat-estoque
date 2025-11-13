@@ -4,8 +4,14 @@ import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { Prisma, StatusPedido } from "@prisma/client";
 import { criarNotificacaoParaAdmins } from "@/lib/notifications";
+import { getUsuarioDaSessao } from "@/lib/session";
+import { Role } from "@prisma/client";
 
 export async function GET(request: Request) {
+  const usuarioLogado = await getUsuarioDaSessao();
+ if (!usuarioLogado) {
+  return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+ }
   try {
     const { searchParams } = new URL(request.url);
 
@@ -18,7 +24,7 @@ export async function GET(request: Request) {
 
     const statusParam = searchParams.get('status'); 
     const sortKey = searchParams.get('sortKey');
-    const sortDirection = searchParams.get('sortDirection') as 'asc' | 'desc' | null;
+  const sortDirection = searchParams.get('sortDirection') as 'asc' | 'desc' | null;
 
     let whereClause: Prisma.PedidoWhereInput = {};
 
@@ -92,6 +98,10 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const usuarioLogado = await getUsuarioDaSessao();
+ if (!usuarioLogado) {
+  return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+ }
   try {
     const body = await request.json();
     const { clienteId, produtos, data, desconto } = body;

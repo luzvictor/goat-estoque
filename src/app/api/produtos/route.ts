@@ -1,9 +1,15 @@
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
+import { getUsuarioDaSessao } from "@/lib/session"; // <-- 1. Importar
+import { Role } from "@prisma/client";
 
 // GET: Listar todos os Produtos Base com suas Variantes
 export async function GET(request: Request) {
+  const usuarioLogado = await getUsuarioDaSessao();
+if (!usuarioLogado) {
+ return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+}
  try {
   const { searchParams } = new URL(request.url);
   const page = parseInt(searchParams.get('page') || '1');
@@ -100,6 +106,10 @@ export async function GET(request: Request) {
 }
 // POST: Criar um novo Produto Base com suas Variantes
 export async function POST(request: Request) {
+  const usuarioLogado = await getUsuarioDaSessao();
+  if (usuarioLogado?.role !== Role.ADM) {
+    return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
+  }
   try {
     const body = await request.json();
 

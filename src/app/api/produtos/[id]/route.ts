@@ -1,12 +1,18 @@
   import { prisma } from "@/lib/prisma";
   import { NextResponse } from "next/server";
   import { Prisma } from "@prisma/client";
+  import { getUsuarioDaSessao } from "@/lib/session";
+  import { Role } from "@prisma/client";
 
   // GET - Obter um único Produto Base pelo ID, com suas variantes
   export async function GET(
     request: Request,
     { params }: { params: { id: string } }
   ) {
+    const usuarioLogado = await getUsuarioDaSessao();
+ if (!usuarioLogado) {
+  return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+ }
     try {
       const { id } = params;
 
